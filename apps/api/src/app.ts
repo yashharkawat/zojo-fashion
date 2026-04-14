@@ -6,6 +6,7 @@ import pinoHttp from 'pino-http';
 
 import { env } from './config/env';
 import { logger } from './config/logger';
+import { prisma } from './config/prisma';
 import { requestIdMiddleware } from './middleware/requestId';
 import { globalLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
@@ -47,8 +48,18 @@ export function createApp(): Application {
   app.use(express.json({ limit: '1mb' }));
   app.use(globalLimiter);
 
-  // Health
+  // Health (no DB)
   app.get('/health', (_req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+
+  // Keep-alive (hits DB — use in Uptime Kuma to prevent Railway sleep + keep Neon warm)
+  app.get('/ping', async (_req, res) => {
+    try {
+      const result = await prisma.$queryRaw<[{ now: Date }]>`SELECT NOW() as now`;
+      res.json({ status: 'ok', db: 'connected', time: result[0]?.now, uptime: process.uptime() });
+    } catch (err) {
+      res.status(503).json({ status: 'error', db: 'disconnected', error: String(err) });
+    }
+  });
 
   // v1 routers
   app.use('/api/v1/auth', authRouter);
