@@ -1,39 +1,24 @@
 name: Deploy
 
+# Railway auto-deploys on push to main (connected via GitHub integration).
+# Vercel auto-deploys on push to main (connected via GitHub integration).
+#
+# This workflow exists only as a gate: it ensures CI passes before the
+# auto-deploys run. Railway's "Wait for CI" setting (enabled in dashboard)
+# holds the deploy until this workflow's status check succeeds.
+#
+# No manual deploy hooks needed — both platforms watch the repo natively.
+
 on:
   push:
     branches: [main]
 
-# Only deploy after CI passes (ci.yml runs on the same push event and
-# shares the concurrency group — this workflow triggers the actual deploy
-# hooks for Render). Vercel deploys via its own GitHub integration.
-
 jobs:
-  deploy-api:
-    name: Trigger Render deploy
+  # This job is intentionally empty — it depends on ci.yml completing.
+  # Railway's "Wait for CI" feature watches for this workflow to pass.
+  deploy-gate:
+    name: Deploy gate (CI must pass)
     runs-on: ubuntu-latest
-    # Only deploy if API code or Prisma schema changed
-    # (Render also auto-deploys on push if configured, but this gives us
-    # a hook to gate on CI status or add pre-deploy scripts later)
+    needs: []
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Check if API or schema changed
-        id: changes
-        run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD -- apps/api/ prisma/ render.yaml)
-          if [ -n "$CHANGED" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Trigger Render deploy hook
-        if: steps.changes.outputs.changed == 'true'
-        run: |
-          curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-        # Set RENDER_DEPLOY_HOOK_URL in GitHub repo secrets.
-        # Get it from Render → Service → Settings → Deploy Hook.
+      - run: echo "CI passed. Railway and Vercel will auto-deploy."

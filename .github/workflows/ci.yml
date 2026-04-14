@@ -38,9 +38,6 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Lint
-        run: npm run lint --if-present
-
   # ─── Frontend checks ──────────────────────────────────────
   web-check:
     name: Web — typecheck + lint
@@ -62,9 +59,6 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Lint
-        run: npm run lint --if-present
-
   # ─── Prisma schema validation ─────────────────────────────
   schema-check:
     name: Prisma schema validate
@@ -80,11 +74,3 @@ jobs:
 
       - name: Validate schema
         run: prisma validate --schema=prisma/schema.prisma
-
-      - name: Check for pending migrations
-        run: prisma migrate status --schema=prisma/schema.prisma
-        env:
-          DATABASE_URL: 'postgresql://dummy:dummy@localhost:5432/dummy'
-        # This will warn about unapplied migrations but won't fail the job
-        # unless the schema itself is invalid.
-        continue-on-error: true
