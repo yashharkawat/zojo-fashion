@@ -13,10 +13,10 @@ export function useRazorpayScript(): State {
   const [state, setState] = useState<State>('idle');
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     if (window.Razorpay) {
       setState('ready');
-      return;
+      return undefined;
     }
 
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${SRC}"]`);
@@ -39,6 +39,7 @@ export function useRazorpayScript(): State {
     s.onload = () => setState('ready');
     s.onerror = () => setState('error');
     document.body.appendChild(s);
+    return undefined;
   }, []);
 
   return state;

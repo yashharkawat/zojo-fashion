@@ -19,10 +19,11 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
 
 async function paginated<T>(path: string): Promise<{ data: T[]; pagination: Pagination }> {
   const { data, meta } = await apiWithMeta<T[]>(path);
-  if (!meta.pagination) {
+  const pagination = (meta as { pagination?: Pagination }).pagination;
+  if (!pagination) {
     throw new Error(`Expected pagination meta on ${path}`);
   }
-  return { data, pagination: meta.pagination };
+  return { data, pagination };
 }
 
 export interface AdminOrdersFilter {
@@ -48,7 +49,7 @@ export interface AdminProductsFilter {
 export const adminApi = {
   // ─── Orders ─────────────────────────────────────────────
   listOrders: (filter: AdminOrdersFilter = {}) =>
-    paginated<AdminOrder>(`/admin/orders${qs(filter)}`),
+    paginated<AdminOrder>(`/admin/orders${qs(filter as Record<string, string | number | boolean | undefined | null>)}`),
 
   updateOrderStatus: (
     id: string,
@@ -83,7 +84,7 @@ export const adminApi = {
 
   // ─── Products ───────────────────────────────────────────
   listProducts: (filter: AdminProductsFilter = {}) =>
-    paginated<AdminProduct>(`/admin/products${qs(filter)}`),
+    paginated<AdminProduct>(`/admin/products${qs(filter as Record<string, string | number | boolean | undefined | null>)}`),
 
   updateProduct: (id: string, body: unknown) =>
     api<AdminProduct>(`/products/${id}`, { method: 'PUT', body }),

@@ -8,12 +8,12 @@ import { RequireAuth } from '@/components/auth/RequireAuth';
 import { cn } from '@/lib/cn';
 
 const ADMIN_NAV = [
-  { href: '/admin', label: 'Overview', exact: true },
-  { href: '/admin/orders', label: 'Orders' },
-  { href: '/admin/products', label: 'Products' },
-  { href: '/admin/analytics', label: 'Analytics' },
-  { href: '/admin/settings', label: 'Settings' },
-] as const;
+  { href: '/admin', label: 'Overview', exact: true as boolean },
+  { href: '/admin/orders', label: 'Orders', exact: false },
+  { href: '/admin/products', label: 'Products', exact: false },
+  { href: '/admin/analytics', label: 'Analytics', exact: false },
+  { href: '/admin/settings', label: 'Settings', exact: false },
+];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
