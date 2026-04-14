@@ -1,8 +1,16 @@
+# Railway/Nixpacks config for monorepo
+# All commands run from apps/api so @prisma/client generates into
+# apps/api/node_modules — where tsc resolves imports from.
+
 [phases.setup]
 nixPkgs = ["nodejs_22", "npm-10_x"]
 
+[phases.install]
+cmds = ["cd apps/api && npm ci --include=dev"]
+onlyIncludeFiles = ["apps/api/package.json", "apps/api/package-lock.json"]
+
 [phases.build]
-cmds = ["cd apps/api && npm install --include=dev && npx prisma generate --schema=../../prisma/schema.prisma && npm run build"]
+cmds = ["cd apps/api && npx prisma generate --schema=../../prisma/schema.prisma && npm run build"]
 
 [start]
 cmd = "cd apps/api && node dist/server.js"
