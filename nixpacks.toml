@@ -1,9 +1,5 @@
 # Railway/Nixpacks config for monorepo
-# All commands run from apps/api so @prisma/client generates into
-# apps/api/node_modules — where tsc resolves imports from.
-
-[phases.setup]
-nixPkgs = ["nodejs-22_x"]
+# Let Nixpacks auto-detect Node version. All commands run from apps/api.
 
 [phases.install]
 cmds = ["cd apps/api && npm ci --include=dev"]
