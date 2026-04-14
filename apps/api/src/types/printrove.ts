@@ -1,126 +1,123 @@
 /**
- * Printrove API type definitions.
- *
- * NOTE: These reflect a reasonable model based on standard POD API conventions.
- * Cross-check against the current Printrove docs before go-live and adjust
- * the adapter in `lib/printrove.ts` (NOT the consumers) if shapes differ.
+ * Printrove API types — based on https://api.printrove.com/docs/
+ * Base URL: https://api.printrove.com/api/external
+ * Auth: JWT via POST /api/external/token (email + password)
  */
 
-// ============================================================
-// Common
-// ============================================================
+// ─── Auth ───────────────────────────────────────────────
 
-export interface PrintroveAddress {
-  name: string;
-  phone: string;
-  address_line_1: string;
-  address_line_2?: string;
-  city: string;
-  state: string;
-  pincode: string;
-  country: string; // ISO-2, e.g., "IN"
+export interface PrintroveTokenRequest {
+  email: string;
+  password: string;
 }
 
-/** Discriminated result envelope used by every client method. */
-export type PrintroveApiResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: PrintroveApiErrorDetail };
-
-export interface PrintroveApiErrorDetail {
-  code: string;
-  message: string;
-  details?: unknown;
-  httpStatus: number;
+export interface PrintroveTokenResponse {
+  access_token: string;
+  expires_at: string; // ISO datetime e.g. "2022-02-03T09:54:34.000000"
 }
 
-// ============================================================
-// Orders
-// ============================================================
+// ─── Orders ─────────────────────────────────────────────
+
+export interface PrintroveCustomer {
+  name: string;           // 3-50 chars
+  email?: string;
+  number: number;         // 10-digit Indian phone (no +91 prefix)
+  address1: string;       // 3-50 chars
+  address2: string;       // 3-50 chars
+  address3?: string;      // landmark
+  pincode: number;        // 6-digit
+  state?: string;
+  city?: string;
+  country: string;        // "India" or 2-letter code
+}
+
+export interface PrintroveDesignDimensions {
+  width: number;
+  height: number;
+  top: number;
+  left: number;
+}
+
+export interface PrintroveDesignPlacement {
+  id: number;             // design ID from Design Library
+  dimensions: PrintroveDesignDimensions;
+}
+
+export interface PrintroveOrderProduct {
+  product_id?: number;
+  variant_id?: number;
+  design?: {
+    front?: PrintroveDesignPlacement;
+    back?: PrintroveDesignPlacement;
+  };
+  quantity: number;
+  is_plain?: boolean;
+}
 
 export interface PrintroveCreateOrderRequest {
-  external_order_id: string; // our orderNumber, idempotent on their side
-  items: PrintroveOrderLineInput[];
-  shipping_address: PrintroveAddress;
-  customer: { name: string; email: string; phone: string };
-  cod?: { enabled: boolean; amount_paise?: number };
-  notes?: string;
+  reference_number: string;   // our orderNumber — unique
+  retail_price: number;       // INR, must be > 0
+  customer: PrintroveCustomer;
+  order_products: PrintroveOrderProduct[];
+  courier_id?: number;        // auto-selected if omitted
+  cod: boolean;
+  invoice_url?: string;
 }
-
-export interface PrintroveOrderLineInput {
-  variant_id: string; // Printrove's variant id (mapped in our ProductVariant.printroveVariantId)
-  quantity: number;
-}
-
-export type PrintroveOrderStatus =
-  | 'pending'
-  | 'in_production'
-  | 'shipped'
-  | 'out_for_delivery'
-  | 'delivered'
-  | 'cancelled'
-  | 'rto';
 
 export interface PrintroveOrder {
-  order_id: string;
-  external_order_id: string;
-  status: PrintroveOrderStatus;
+  id: number;
+  reference_number: string;
+  status: string;
+  tracking_number?: string;
+  courier?: string;
   created_at: string;
   updated_at: string;
-  items: PrintroveOrderLine[];
-  shipment?: PrintroveShipmentInfo;
 }
 
-export interface PrintroveOrderLine {
-  line_id: string;
-  variant_id: string;
-  quantity: number;
-  printed_at?: string;
-}
-
-export interface PrintroveShipmentInfo {
-  awb_number: string;
-  courier: string;
-  courier_service_code?: string;
-  tracking_url: string;
-  shipped_at?: string;
-  delivered_at?: string;
-  estimated_delivery_at?: string;
-}
-
-// ============================================================
-// Webhook events — discriminated union by `event`
-// ============================================================
-
-interface WebhookBase {
-  order_id: string;      // Printrove's id
-  external_order_id: string;
-  at: string;            // ISO timestamp
-}
-
-export type PrintroveWebhookEvent =
-  | ({ event: 'order.in_production' } & WebhookBase)
-  | ({ event: 'order.shipped'; shipment: PrintroveShipmentInfo } & WebhookBase)
-  | ({ event: 'order.out_for_delivery' } & WebhookBase)
-  | ({ event: 'order.delivered' } & WebhookBase)
-  | ({ event: 'order.cancelled'; reason?: string } & WebhookBase)
-  | ({ event: 'order.rto'; reason?: string } & WebhookBase);
-
-export type PrintroveWebhookEventType = PrintroveWebhookEvent['event'];
-
-// ============================================================
-// Products (for admin catalog sync — not used in MVP customer flow)
-// ============================================================
+// ─── Products / Catalog ─────────────────────────────────
 
 export interface PrintroveProduct {
-  product_id: string;
-  title: string;
-  variants: PrintroveProductVariant[];
+  id: number;
+  name: string;
+  sku?: string;
+  variants?: PrintroveProductVariant[];
 }
 
 export interface PrintroveProductVariant {
-  variant_id: string;
+  id: number;
   sku: string;
   size: string;
   color: string;
-  price_paise: number;
+  price: number;
 }
+
+// ─── Serviceability ─────────────────────────────────────
+
+export interface PrintroveServiceabilityParams {
+  country: string;
+  pincode: string;
+  weight: string;       // grams
+  cod?: string;         // "true" / "false"
+}
+
+// ─── Paginated response ─────────────────────────────────
+
+export interface PrintrovePaginatedResponse<T> {
+  data: T[];
+  current_page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+}
+
+// ─── Webhook events (Printrove sends status updates) ────
+
+export type PrintroveWebhookEvent =
+  | { event: 'order.in_production'; order_id: string; external_order_id: string; at: string }
+  | { event: 'order.shipped'; order_id: string; external_order_id: string; at: string; shipment: { awb_number: string; courier: string; courier_service_code?: string; tracking_url: string; shipped_at?: string; delivered_at?: string; estimated_delivery_at?: string } }
+  | { event: 'order.out_for_delivery'; order_id: string; external_order_id: string; at: string }
+  | { event: 'order.delivered'; order_id: string; external_order_id: string; at: string }
+  | { event: 'order.cancelled'; order_id: string; external_order_id: string; at: string; reason?: string }
+  | { event: 'order.rto'; order_id: string; external_order_id: string; at: string; reason?: string };
+
+export type PrintroveWebhookEventType = PrintroveWebhookEvent['event'];

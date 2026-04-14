@@ -3,82 +3,155 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { UpstreamError, ValidationError } from './errors';
 import type {
-  PrintroveApiResult,
   PrintroveCreateOrderRequest,
   PrintroveOrder,
-  PrintroveAddress,
+  PrintroveTokenResponse,
+  PrintroveCustomer,
 } from '../types/printrove';
 
 // ============================================================
-// Client class — single point of contact with Printrove
+// Printrove API Client
+// Auth: email/password → JWT token (auto-refreshed on expiry)
+// Base: https://api.printrove.com/api/external
 // ============================================================
 
-interface ClientOptions {
-  baseUrl: string;
-  apiKey: string;
-  timeoutMs?: number;
-}
-
-interface RequestOptions {
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
-  path: string;
-  body?: unknown;
-  /** Idempotency key for POST. Printrove may honor it or not — safe to send. */
-  idempotencyKey?: string;
-  /** Max retry attempts on 5xx/network errors. Default 3. */
-  maxRetries?: number;
+interface ApiResult<T> {
+  success: boolean;
+  data?: T;
+  error?: { code: string; message: string; httpStatus: number; details?: unknown };
 }
 
 export class PrintroveClient {
   private readonly baseUrl: string;
-  private readonly apiKey: string;
+  private readonly email: string;
+  private readonly password: string;
+  private readonly webhookSecret: string;
   private readonly timeoutMs: number;
 
-  constructor(opts: ClientOptions) {
+  private token: string | null = null;
+  private tokenExpiresAt: Date | null = null;
+
+  constructor(opts: {
+    baseUrl: string;
+    email: string;
+    password: string;
+    webhookSecret: string;
+    timeoutMs?: number;
+  }) {
     this.baseUrl = opts.baseUrl.replace(/\/$/, '');
-    this.apiKey = opts.apiKey;
+    this.email = opts.email;
+    this.password = opts.password;
+    this.webhookSecret = opts.webhookSecret;
     this.timeoutMs = opts.timeoutMs ?? 15_000;
   }
 
-  // ──────────────── Public methods ────────────────
+  // ──────────────── Auth ────────────────
+
+  private async getToken(): Promise<string> {
+    // Return cached token if still valid (with 60s buffer)
+    if (this.token && this.tokenExpiresAt && this.tokenExpiresAt.getTime() > Date.now() + 60_000) {
+      return this.token;
+    }
+
+    logger.info('Printrove: refreshing auth token');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const res = await fetch(`${this.baseUrl}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ email: this.email, password: this.password }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new UpstreamError(`Printrove auth failed: ${res.status} ${body}`);
+      }
+
+      const data = (await res.json()) as PrintroveTokenResponse;
+      this.token = data.access_token;
+      this.tokenExpiresAt = new Date(data.expires_at);
+      logger.info({ expiresAt: data.expires_at }, 'Printrove: token acquired');
+      return this.token;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  // ──────────────── Orders ────────────────
 
   async createOrder(req: PrintroveCreateOrderRequest): Promise<PrintroveOrder> {
-    const res = await this.request<PrintroveOrder>({
-      method: 'POST',
-      path: '/orders',
-      body: req,
-      idempotencyKey: req.external_order_id,
-    });
-    return this.unwrap(res, 'createOrder');
+    return this.authedRequest<PrintroveOrder>('POST', '/orders', req);
   }
 
-  async getOrder(printroveOrderId: string): Promise<PrintroveOrder> {
-    const res = await this.request<PrintroveOrder>({
-      method: 'GET',
-      path: `/orders/${encodeURIComponent(printroveOrderId)}`,
-    });
-    return this.unwrap(res, 'getOrder');
+  async getOrder(orderId: string | number): Promise<PrintroveOrder> {
+    return this.authedRequest<PrintroveOrder>('GET', `/orders/${orderId}`);
   }
 
-  async cancelOrder(printroveOrderId: string, reason?: string): Promise<void> {
-    const res = await this.request<{ ok: true }>({
-      method: 'POST',
-      path: `/orders/${encodeURIComponent(printroveOrderId)}/cancel`,
-      body: { reason },
-      maxRetries: 1,
+  async listOrders(params?: { page?: number; per_page?: number; reference_number?: string }): Promise<{ data: PrintroveOrder[] }> {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    if (params?.reference_number) qs.set('reference_number', params.reference_number);
+    const q = qs.toString();
+    return this.authedRequest<{ data: PrintroveOrder[] }>('GET', `/orders${q ? `?${q}` : ''}`);
+  }
+
+  // ──────────────── Serviceability ────────────────
+
+  async checkServiceability(params: {
+    country: string;
+    pincode: string;
+    weight: string;
+    cod?: boolean;
+  }): Promise<unknown> {
+    const qs = new URLSearchParams({
+      country: params.country,
+      pincode: params.pincode,
+      weight: params.weight,
+      ...(params.cod !== undefined ? { cod: String(params.cod) } : {}),
     });
-    this.unwrap(res, 'cancelOrder');
+    return this.authedRequest<unknown>('GET', `/serviceability?${qs}`);
+  }
+
+  async getPincodeDetails(pincode: string): Promise<unknown> {
+    return this.authedRequest<unknown>('GET', `/pincode/${pincode}`);
+  }
+
+  // ──────────────── Products / Catalog ────────────────
+
+  async listProducts(params?: { page?: number; per_page?: number; name?: string; sku?: string }): Promise<unknown> {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    if (params?.name) qs.set('name', params.name);
+    if (params?.sku) qs.set('sku', params.sku);
+    const q = qs.toString();
+    return this.authedRequest<unknown>('GET', `/products${q ? `?${q}` : ''}`);
+  }
+
+  async getProduct(productId: string | number): Promise<unknown> {
+    return this.authedRequest<unknown>('GET', `/products/${productId}`);
+  }
+
+  // ──────────────── Designs ────────────────
+
+  async listDesigns(params?: { page?: number; name?: string }): Promise<unknown> {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.name) qs.set('name', params.name);
+    const q = qs.toString();
+    return this.authedRequest<unknown>('GET', `/designs${q ? `?${q}` : ''}`);
   }
 
   // ──────────────── Webhook signature ────────────────
 
-  /**
-   * Verify Printrove webhook signature. HMAC-SHA256 over the raw body.
-   * Returns true if signature matches (timing-safe).
-   */
   verifyWebhookSignature(rawBody: string, signature: string): boolean {
+    if (!this.webhookSecret) return true; // no secret configured = skip verification
     const expected = crypto
-      .createHmac('sha256', env.PRINTROVE_WEBHOOK_SECRET)
+      .createHmac('sha256', this.webhookSecret)
       .update(rawBody)
       .digest('hex');
     const a = Buffer.from(expected, 'hex');
@@ -87,92 +160,94 @@ export class PrintroveClient {
     return crypto.timingSafeEqual(a, b);
   }
 
-  // ──────────────── Internals ────────────────
+  // ──────────────── Core request method ────────────────
 
-  private unwrap<T>(result: PrintroveApiResult<T>, op: string): T {
-    if (result.success) return result.data;
-    // 4xx → client-side: surface as ValidationError, don't retry
-    if (result.error.httpStatus >= 400 && result.error.httpStatus < 500) {
-      throw new ValidationError(`Printrove ${op} rejected: ${result.error.message}`, result.error);
-    }
-    throw new UpstreamError(`Printrove ${op} failed: ${result.error.message}`, result.error);
-  }
-
-  private async request<T>(opts: RequestOptions): Promise<PrintroveApiResult<T>> {
-    const maxRetries = opts.maxRetries ?? 3;
-    let lastError: PrintroveApiResult<T> | null = null;
+  private async authedRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const maxRetries = 3;
+    let lastError: ApiResult<T> | null = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const result = await this.attempt<T>(opts, attempt);
+      const result = await this.doRequest<T>(method, path, body, attempt);
 
-      // Success
-      if (result.success) return result;
+      if (result.success && result.data !== undefined) return result.data;
 
-      // Non-retriable: 4xx (except 429)
+      // 401 = token expired, refresh and retry once
+      if (result.error?.httpStatus === 401 && attempt === 1) {
+        this.token = null;
+        this.tokenExpiresAt = null;
+        logger.info('Printrove: token expired, refreshing');
+        continue;
+      }
+
+      // 4xx (except 401/429) = don't retry
       if (
+        result.error &&
         result.error.httpStatus >= 400 &&
         result.error.httpStatus < 500 &&
         result.error.httpStatus !== 429
       ) {
-        return result;
+        throw new ValidationError(
+          `Printrove ${method} ${path} rejected: ${result.error.message}`,
+          result.error,
+        );
       }
 
-      // Retriable
       lastError = result;
       if (attempt < maxRetries) {
-        const backoff = 500 * 2 ** (attempt - 1); // 500, 1000, 2000
-        logger.warn(
-          { attempt, maxRetries, backoff, op: opts.path, status: result.error.httpStatus },
-          'Printrove retryable error — backing off',
-        );
+        const backoff = 500 * 2 ** (attempt - 1);
+        logger.warn({ attempt, backoff, path, status: result.error?.httpStatus }, 'Printrove retrying');
         await sleep(backoff);
       }
     }
-    return lastError!;
+
+    throw new UpstreamError(
+      `Printrove ${method} ${path} failed after ${maxRetries} attempts`,
+      lastError?.error,
+    );
   }
 
-  private async attempt<T>(opts: RequestOptions, attempt: number): Promise<PrintroveApiResult<T>> {
+  private async doRequest<T>(method: string, path: string, body: unknown, attempt: number): Promise<ApiResult<T>> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const res = await fetch(`${this.baseUrl}${opts.path}`, {
-        method: opts.method,
+      const token = await this.getToken();
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${token}`,
           'User-Agent': 'Zojo-Fashion/1.0',
-          ...(opts.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}),
         },
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
 
-      // Parse body (even on error to surface message)
-      let body: unknown = null;
+      let responseBody: unknown = null;
       try {
-        body = await res.json();
+        responseBody = await res.json();
       } catch {
-        // ignore — non-JSON response
+        // non-JSON response
       }
 
       if (res.ok) {
-        return { success: true, data: body as T };
+        return { success: true, data: responseBody as T };
       }
 
-      const errBody = body as { code?: string; message?: string; details?: unknown } | null;
+      const errBody = responseBody as { message?: string; error?: string } | null;
       return {
         success: false,
         error: {
-          code: errBody?.code ?? `HTTP_${res.status}`,
-          message: errBody?.message ?? (res.statusText || 'Unknown error'),
-          details: errBody?.details,
+          code: `HTTP_${res.status}`,
+          message: errBody?.message ?? errBody?.error ?? (res.statusText || 'Unknown error'),
           httpStatus: res.status,
+          details: errBody,
         },
       };
     } catch (err) {
-      logger.warn({ err, attempt, path: opts.path }, 'Printrove network error');
+      if (err instanceof ValidationError || err instanceof UpstreamError) throw err;
+      logger.warn({ err, attempt, path }, 'Printrove network error');
       return {
         success: false,
         error: {
@@ -190,33 +265,43 @@ export class PrintroveClient {
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 // ============================================================
-// Singleton + back-compat helpers for existing callers
+// Singleton
 // ============================================================
 
 export const printrove = new PrintroveClient({
   baseUrl: env.PRINTROVE_API_URL,
-  apiKey: env.PRINTROVE_API_KEY,
+  email: env.PRINTROVE_EMAIL,
+  password: env.PRINTROVE_PASSWORD,
+  webhookSecret: env.PRINTROVE_WEBHOOK_SECRET,
 });
 
-/**
- * Back-compat: existing `payments.service.ts` calls `pushOrder(...)`.
- * Thin adapter that converts our internal shape to Printrove's request.
- */
+// ============================================================
+// Adapter — pushOrder() used by payments.service.ts
+// Converts our internal shape → Printrove's actual API format
+// ============================================================
+
 export interface PushOrderInput {
-  externalOrderId: string;
-  items: Array<{ printroveVariantId: string; quantity: number }>;
+  externalOrderId: string;    // our orderNumber
+  totalRupees: number;        // retail_price for Printrove
+  items: Array<{
+    printroveVariantId: string;  // maps to variant_id (int) or product_id
+    quantity: number;
+    designFrontId?: number;
+    designBackId?: number;
+  }>;
   shippingAddress: {
     fullName: string;
-    phone: string;
+    phone: string;          // E.164 format (+91XXXXXXXXXX)
     line1: string;
     line2?: string;
+    landmark?: string;
     city: string;
     state: string;
     pincode: string;
     country: string;
   };
   customer?: { name: string; email: string; phone: string };
-  codAmountPaise?: number;
+  isCod?: boolean;
 }
 
 export interface PushOrderResponse {
@@ -224,42 +309,61 @@ export interface PushOrderResponse {
   status: string;
 }
 
+/** Strip +91 prefix → 10-digit number for Printrove */
+function toIndianPhone(phone: string): number {
+  const cleaned = phone.replace(/\D/g, '');
+  const digits = cleaned.startsWith('91') && cleaned.length === 12
+    ? cleaned.slice(2)
+    : cleaned;
+  return parseInt(digits, 10);
+}
+
 export async function pushOrder(input: PushOrderInput): Promise<PushOrderResponse> {
-  const address: PrintroveAddress = {
-    name: input.shippingAddress.fullName,
-    phone: input.shippingAddress.phone,
-    address_line_1: input.shippingAddress.line1,
-    address_line_2: input.shippingAddress.line2,
-    city: input.shippingAddress.city,
-    state: input.shippingAddress.state,
-    pincode: input.shippingAddress.pincode,
-    country: input.shippingAddress.country,
+  const addr = input.shippingAddress;
+  const cust = input.customer;
+
+  const customer: PrintroveCustomer = {
+    name: cust?.name ?? addr.fullName,
+    email: cust?.email,
+    number: toIndianPhone(cust?.phone ?? addr.phone),
+    address1: addr.line1,
+    address2: addr.line2 ?? '-',
+    address3: addr.landmark,
+    pincode: parseInt(addr.pincode, 10),
+    state: addr.state,
+    city: addr.city,
+    country: addr.country === 'IN' ? 'India' : addr.country,
   };
 
   const order = await printrove.createOrder({
-    external_order_id: input.externalOrderId,
-    items: input.items.map((i) => ({
-      variant_id: i.printroveVariantId,
+    reference_number: input.externalOrderId,
+    retail_price: input.totalRupees,
+    customer,
+    order_products: input.items.map((i) => ({
+      variant_id: parseInt(i.printroveVariantId, 10) || undefined,
       quantity: i.quantity,
+      // If design IDs are provided, include placement (default full-print dimensions)
+      ...(i.designFrontId || i.designBackId
+        ? {
+            design: {
+              ...(i.designFrontId
+                ? { front: { id: i.designFrontId, dimensions: { width: 3000, height: 3000, top: 10, left: 50 } } }
+                : {}),
+              ...(i.designBackId
+                ? { back: { id: i.designBackId, dimensions: { width: 3000, height: 3000, top: 10, left: 50 } } }
+                : {}),
+            },
+          }
+        : {}),
     })),
-    shipping_address: address,
-    customer: input.customer ?? {
-      name: input.shippingAddress.fullName,
-      email: '',
-      phone: input.shippingAddress.phone,
-    },
-    cod:
-      input.codAmountPaise !== undefined
-        ? { enabled: true, amount_paise: input.codAmountPaise }
-        : undefined,
+    cod: input.isCod ?? false,
   });
 
   return {
-    printroveOrderId: order.order_id,
-    status: order.status,
+    printroveOrderId: String(order.id ?? order.reference_number),
+    status: order.status ?? 'pending',
   };
 }
 
-/** Back-compat export for any remaining callers. */
 export const verifyPrintroveWebhook = (rawBody: string, signature: string): boolean =>
   printrove.verifyWebhookSignature(rawBody, signature);

@@ -28,8 +28,9 @@ const envSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().min(1),
 
   PRINTROVE_API_URL: z.string().url(),
-  PRINTROVE_API_KEY: z.string().min(1),
-  PRINTROVE_WEBHOOK_SECRET: z.string().min(1),
+  PRINTROVE_EMAIL: z.string().min(1),
+  PRINTROVE_PASSWORD: z.string().min(1),
+  PRINTROVE_WEBHOOK_SECRET: z.string().default(''),
 
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 });

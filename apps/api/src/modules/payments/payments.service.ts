@@ -262,8 +262,10 @@ async function pushToPrintroveBackground(orderId: string): Promise<void> {
   }
 
   try {
+    const isCod = order.status === OrderStatus.CONFIRMED && (await isCodOrder(orderId));
     const res = await pushOrder({
       externalOrderId: order.orderNumber,
+      totalRupees: Math.round(order.total / 100), // paise → rupees for Printrove
       items: order.items.map((i) => ({
         printroveVariantId: i.printroveSku!,
         quantity: i.quantity,
@@ -274,10 +276,7 @@ async function pushToPrintroveBackground(orderId: string): Promise<void> {
         email: order.user.email,
         phone: order.user.phone ?? addr.phone,
       },
-      codAmountPaise:
-        order.status === OrderStatus.CONFIRMED && (await isCodOrder(orderId))
-          ? order.total
-          : undefined,
+      isCod,
     });
 
     await prisma.$transaction([

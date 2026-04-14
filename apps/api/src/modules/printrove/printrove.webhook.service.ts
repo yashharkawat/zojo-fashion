@@ -370,26 +370,39 @@ export async function reconcileOrder(orderId: string): Promise<{
     throw new ValidationError('Order has no Printrove id; cannot reconcile');
   }
 
-  const remote = await printrove.getOrder(order.printroveOrderId);
+  const remote = await printrove.getOrder(order.printroveOrderId) as {
+    id: number;
+    reference_number: string;
+    status: string;
+    tracking_number?: string;
+    courier?: string;
+    updated_at: string;
+  };
 
-  // Synthesize a fake webhook event and apply it
-  const synthesized: PrintroveWebhookEvent = remote.shipment
+  // Synthesize a webhook-like event from the polled order state
+  const remoteId = String(remote.id);
+  const refNum = remote.reference_number ?? order.orderNumber;
+  const now = remote.updated_at ?? new Date().toISOString();
+
+  const synthesized: PrintroveWebhookEvent = remote.tracking_number
     ? {
         event: remote.status === 'delivered'
           ? 'order.delivered'
-          : remote.status === 'shipped'
-          ? 'order.shipped'
-          : 'order.in_production',
-        order_id: remote.order_id,
-        external_order_id: remote.external_order_id,
-        at: remote.updated_at,
-        shipment: remote.shipment,
+          : 'order.shipped',
+        order_id: remoteId,
+        external_order_id: refNum,
+        at: now,
+        shipment: {
+          awb_number: remote.tracking_number,
+          courier: remote.courier ?? 'Unknown',
+          tracking_url: '',
+        },
       } as PrintroveWebhookEvent
     : {
         event: remote.status === 'cancelled' ? 'order.cancelled' : 'order.in_production',
-        order_id: remote.order_id,
-        external_order_id: remote.external_order_id,
-        at: remote.updated_at,
+        order_id: remoteId,
+        external_order_id: refNum,
+        at: now,
       } as PrintroveWebhookEvent;
 
   const before = order.status;

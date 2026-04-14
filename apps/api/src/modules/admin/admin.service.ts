@@ -278,6 +278,7 @@ export async function retryPrintrove(adminUserId: string, orderId: string) {
   try {
     const res = await pushOrder({
       externalOrderId: order.orderNumber,
+      totalRupees: Math.round(order.total / 100),
       items: order.items.map((i) => ({
         printroveVariantId: i.printroveSku!,
         quantity: i.quantity,
