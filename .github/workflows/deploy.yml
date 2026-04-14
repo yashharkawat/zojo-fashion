@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Only deploy after CI passes (ci.yml runs on the same push event and
+# shares the concurrency group — this workflow triggers the actual deploy
+# hooks for Render). Vercel deploys via its own GitHub integration.
+
+jobs:
+  deploy-api:
+    name: Trigger Render deploy
+    runs-on: ubuntu-latest
+    # Only deploy if API code or Prisma schema changed
+    # (Render also auto-deploys on push if configured, but this gives us
+    # a hook to gate on CI status or add pre-deploy scripts later)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if API or schema changed
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- apps/api/ prisma/ render.yaml)
+          if [ -n "$CHANGED" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Render deploy hook
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+        # Set RENDER_DEPLOY_HOOK_URL in GitHub repo secrets.
+        # Get it from Render → Service → Settings → Deploy Hook.

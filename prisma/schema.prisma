@@ -1,0 +1,819 @@
+// =====================================================================
+// Zojo Fashion — Prisma Schema
+// PostgreSQL + Prisma ORM
+// India-first e-commerce, Printrove POD fulfillment, Razorpay payments
+// =====================================================================
+//
+// Conventions
+// - Money stored as INT in paise (₹1 = 100 paise). Never Float/Decimal in app.
+// - `cuid()` primary keys (URL-safe, sortable).
+// - Soft delete via `deletedAt` on Product/Variant — orders reference them forever.
+// - Snapshot fields (titleSnapshot, priceSnapshot) on CartItem/OrderItem to
+//   insulate against catalog changes mid-session / post-purchase edits.
+// - All timestamps in UTC. Display layer handles IST conversion.
+// - Phone: E.164 format (+91XXXXXXXXXX). Validated at app layer via Zod.
+// - Pincode: 6-digit string. App-layer regex validation.
+// - GSTIN: 15-char string, app-layer validation. Optional (B2B only).
+// =====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // For Supabase pgBouncer:
+  // directUrl = env("DIRECT_URL")   // used for migrations only
+}
+
+// =====================================================================
+// ENUMS
+// =====================================================================
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  SUPPORT       // read-only order access, status updates
+  SUPER_ADMIN   // full access including financial + user deletion
+}
+
+enum Gender {
+  MEN
+  WOMEN
+  UNISEX
+}
+
+enum OrderStatus {
+  PENDING       // order created, payment not yet confirmed
+  CONFIRMED     // payment captured, ready to push to Printrove
+  PRINTING      // Printrove acknowledged, in production
+  SHIPPED       // dispatched with tracking
+  DELIVERED     // delivered to customer
+  CANCELLED     // cancelled before fulfillment
+  REFUNDED      // refunded (partial or full)
+}
+
+enum PaymentStatus {
+  CREATED       // Razorpay order created, awaiting payment
+  AUTHORIZED    // payment authorized but not captured (rare with auto-capture)
+  CAPTURED      // payment captured successfully
+  FAILED        // payment failed (user side or gateway)
+  REFUNDED      // full refund issued
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  UPI
+  CARD
+  NETBANKING
+  WALLET
+  EMI
+  COD           // cash on delivery
+  OTHER
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+enum AddressType {
+  HOME
+  WORK
+  OTHER
+}
+
+enum CouponType {
+  PERCENTAGE    // e.g., 10% off
+  FLAT          // e.g., ₹200 off
+  FREE_SHIPPING
+}
+
+enum CouponStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+  EXHAUSTED
+}
+
+enum VerificationTokenType {
+  OTP_LOGIN
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum PrintroveSyncStatus {
+  NOT_SYNCED
+  SYNCED
+  FAILED
+  MANUAL_REVIEW
+}
+
+enum ShipmentStatus {
+  PENDING
+  MANIFESTED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RTO_INITIATED      // return to origin
+  RTO_DELIVERED
+  LOST
+  DAMAGED
+}
+
+// =====================================================================
+// USER & AUTH
+// =====================================================================
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  phone           String?    @unique              // E.164, +91XXXXXXXXXX
+  emailVerified   DateTime?
+  phoneVerified   DateTime?
+  passwordHash    String
+  firstName       String?
+  lastName        String?
+  dateOfBirth     DateTime?  @db.Date
+  gender          Gender?
+  gstin           String?                         // optional B2B
+  role            UserRole   @default(CUSTOMER)
+  isActive        Boolean    @default(true)
+  lastLoginAt     DateTime?
+
+  // Marketing / analytics
+  referralCode    String?    @unique               // user's own code to share
+  referredByCode  String?                          // code they signed up with
+  marketingOptIn  Boolean    @default(false)
+
+  // Relations
+  addresses       Address[]
+  orders          Order[]
+  cart            Cart?
+  wishlist        Wishlist?
+  reviews         Review[]
+  refreshTokens       RefreshToken[]
+  verificationTokens  VerificationToken[]
+  adminProfile        AdminProfile?
+  couponUsages        CouponUsage[]
+  auditLogs           AuditLog[]
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?                        // soft delete (GDPR-ish)
+
+  @@index([role, isActive])
+  @@index([referralCode])
+  @@index([createdAt])
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique                    // SHA-256 of raw token (never store raw)
+  userAgent  String?
+  ipAddress  String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+// Unified store for OTPs, email-verify tokens, password-reset tokens.
+// Raw code/token is NEVER stored — only SHA-256 hash.
+model VerificationToken {
+  id                String                @id @default(cuid())
+  type              VerificationTokenType
+  userId            String?
+  user              User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  identifier        String                                             // phone (E.164) for OTP, email for others
+  codeHash          String
+  expiresAt         DateTime
+  attemptsRemaining Int                   @default(5)
+  consumedAt        DateTime?
+  ipAddress         String?
+  createdAt         DateTime              @default(now())
+
+  @@index([type, identifier, consumedAt])
+  @@index([expiresAt])
+  @@unique([type, identifier, codeHash])
+}
+
+// Admin-specific profile / permissions.
+// Kept separate from User so customer-facing queries don't load admin noise.
+model AdminProfile {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName  String
+  permissions  String[]                            // granular: ["product.write", "order.refund", ...]
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// =====================================================================
+// ADDRESS (India-specific)
+// =====================================================================
+
+model Address {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       AddressType @default(HOME)
+  fullName   String
+  phone      String                                // E.164
+  line1      String
+  line2      String?
+  landmark   String?
+  city       String
+  state      String                                // Indian state name (validated at app layer)
+  pincode    String                                // 6 digits
+  country    String      @default("IN")
+  isDefault  Boolean     @default(false)
+
+  orders     Order[]     @relation("OrderAddressRef") // orders that picked this (snapshot still on order)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([userId, isDefault])
+  @@index([pincode])
+}
+
+// =====================================================================
+// CATALOG: Category, Product, Variant, Image, Collection
+// =====================================================================
+
+model Category {
+  id          String     @id @default(cuid())
+  slug        String     @unique                   // "t-shirts", "hoodies", "oversized"
+  name        String
+  description String?
+  imageUrl    String?
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  sortOrder   Int        @default(0)
+  isActive    Boolean    @default(true)
+
+  products    Product[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([parentId, isActive])
+  @@index([slug])
+}
+
+// Collections = campaign/series drops (e.g., "Naruto Shippuden", "Psytrance Series")
+// Cross-cuts categories. A hoodie and a tee can both belong to "Attack on Titan".
+model Collection {
+  id             String              @id @default(cuid())
+  slug           String              @unique
+  title          String
+  subtitle       String?
+  description    String?
+  heroImage      String
+  mobileHeroImage String?
+  animeSeries    String?             // "Naruto", "AOT", "One Piece" — free text facet
+  isFeatured     Boolean             @default(false)
+  isActive       Boolean             @default(true)
+  sortOrder      Int                 @default(0)
+  startsAt       DateTime?
+  endsAt         DateTime?
+
+  products       CollectionProduct[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([isActive, isFeatured, sortOrder])
+  @@index([animeSeries])
+}
+
+model CollectionProduct {
+  collectionId String
+  productId    String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sortOrder    Int        @default(0)
+
+  @@id([collectionId, productId])
+  @@index([productId])
+}
+
+model Product {
+  id                 String               @id @default(cuid())
+  slug               String               @unique
+  title              String
+  description        String                                    // markdown / plain
+  shortDescription   String?
+  categoryId         String
+  category           Category             @relation(fields: [categoryId], references: [id])
+  basePrice          Int                                       // paise; variant price overrides
+  compareAtPrice     Int?                                      // MRP for strike-through display
+  gender             Gender               @default(MEN)
+  animeSeries        String?                                   // "Naruto", "AOT" — denormalized for fast facet
+  tags               String[]                                  // ["anime", "oversized", "psytrance"]
+  material           String?                                   // "100% cotton, 240 GSM"
+  careInstructions   String?
+  sizeGuideUrl       String?
+
+  // Printrove mapping (product-level; variants carry SKU-level mapping)
+  printroveProductId String?
+  printroveSyncStatus PrintroveSyncStatus @default(NOT_SYNCED)
+  printroveLastSyncedAt DateTime?
+
+  // SEO
+  metaTitle          String?
+  metaDescription    String?
+
+  // Stats (denormalized for fast PLP sorting — updated by triggers/jobs)
+  avgRating          Float?                                    // 0-5, null if no reviews
+  reviewCount        Int                  @default(0)
+  soldCount          Int                  @default(0)
+
+  isActive           Boolean              @default(true)
+  isFeatured         Boolean              @default(false)
+
+  images             ProductImage[]
+  variants           ProductVariant[]
+  reviews            Review[]
+  wishlistItems      WishlistItem[]
+  collections        CollectionProduct[]
+
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  deletedAt          DateTime?                                 // soft delete
+
+  @@index([categoryId, isActive, deletedAt])
+  @@index([animeSeries, isActive])
+  @@index([isFeatured, isActive])
+  @@index([slug])
+  @@index([createdAt])                                         // for "new arrivals"
+  @@index([soldCount])                                         // for "bestsellers"
+}
+
+model ProductVariant {
+  id                 String    @id @default(cuid())
+  productId          String
+  product            Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku                String    @unique                         // human-readable: ZJ-NAR-TEE-BLK-M
+  size               String                                    // "S", "M", "L", "XL", "XXL"
+  color              String                                    // "Black", "White", "Neon Purple"
+  colorHex           String?                                   // "#000000" for swatch UI
+  price              Int                                       // paise; falls back to product.basePrice at app layer
+  weightGrams        Int?                                      // for shipping calc
+
+  // POD inventory: effectively unlimited but track for low-stock blanks
+  stock              Int       @default(9999)
+
+  // Printrove SKU mapping — CRITICAL. Order push fails without this.
+  printroveVariantId String?   @unique
+  printroveBlankSku  String?                                   // Printrove's internal blank SKU ref
+
+  isActive           Boolean   @default(true)
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  @@index([productId, isActive, deletedAt])
+  @@index([sku])
+  @@index([printroveVariantId])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String                                             // Cloudinary secure_url
+  publicId  String                                             // Cloudinary public_id (for transforms/delete)
+  alt       String?
+  width     Int?
+  height    Int?
+  sortOrder Int      @default(0)
+  isPrimary Boolean  @default(false)                           // shown on PLP card
+  createdAt DateTime @default(now())
+
+  @@index([productId, sortOrder])
+}
+
+// =====================================================================
+// CMS: Homepage banners (non-product marketing slots)
+// =====================================================================
+
+model HomepageBanner {
+  id             String    @id @default(cuid())
+  title          String?
+  subtitle       String?
+  imageUrl       String
+  mobileImageUrl String?
+  ctaText        String?
+  ctaUrl         String?
+  position       String    @default("HERO")                    // HERO | STRIP | SECONDARY
+  sortOrder      Int       @default(0)
+  isActive       Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([position, isActive, sortOrder])
+}
+
+// =====================================================================
+// CART
+// =====================================================================
+
+model Cart {
+  id         String     @id @default(cuid())
+  userId     String     @unique
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items      CartItem[]
+  couponCode String?                                           // applied but not yet consumed
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model CartItem {
+  id             String         @id @default(cuid())
+  cartId         String
+  cart           Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId      String
+  variant        ProductVariant @relation(fields: [variantId], references: [id])
+  quantity       Int
+  // Snapshots so that if the catalog price changes mid-session,
+  // we don't silently change the user's cart total.
+  priceSnapshot  Int                                            // paise
+  titleSnapshot  String
+  imageSnapshot  String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([cartId, variantId])
+  @@index([variantId])
+}
+
+// =====================================================================
+// ORDER & FULFILLMENT
+// =====================================================================
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique                          // ZJ-2026-000123 (app-generated, human-friendly)
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+
+  // Money (all paise)
+  subtotal        Int                                          // sum of item totals
+  shippingFee     Int         @default(0)
+  discountAmount  Int         @default(0)                      // from coupon
+  taxAmount       Int         @default(0)                      // GST
+  total           Int                                          // final payable
+
+  // Address — relation + snapshot (address may change post-order; we preserve what was shipped)
+  shippingAddressId       String?
+  shippingAddress         Address?  @relation("OrderAddressRef", fields: [shippingAddressId], references: [id])
+  shippingAddressSnapshot Json                                 // frozen copy at order time
+
+  // GST (India)
+  gstin           String?                                      // B2B orders
+  gstInvoiceUrl   String?                                      // generated post-confirm
+
+  // Status
+  status          OrderStatus @default(PENDING)
+  cancelledAt     DateTime?
+  cancelledReason String?
+
+  // Coupon
+  couponId        String?
+  coupon          Coupon?     @relation(fields: [couponId], references: [id])
+  couponCode      String?                                      // snapshot (coupon may be edited/deleted)
+
+  // Printrove fulfillment
+  printroveOrderId       String?   @unique
+  printroveSyncStatus    PrintroveSyncStatus @default(NOT_SYNCED)
+  printroveLastSyncedAt  DateTime?
+  printroveLastError     String?
+  printroveRetryCount    Int       @default(0)
+
+  // Relations
+  items           OrderItem[]
+  payment         Payment?                                     // 1:1
+  shipment        Shipment?                                    // 1:1 (MVP; could become 1:N for split shipments later)
+  statusHistory   OrderStatusEvent[]
+  refunds         Refund[]
+  receipt         Receipt?
+
+  // Meta
+  notes           String?                                      // customer note
+  internalNotes   String?                                      // admin-only
+  placedAt        DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId, placedAt(sort: Desc)])
+  @@index([status, placedAt])
+  @@index([printroveSyncStatus, status])                       // for retry workers
+  @@index([orderNumber])
+  @@index([placedAt])
+}
+
+model OrderItem {
+  id              String          @id @default(cuid())
+  orderId         String
+  order           Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId       String
+  variant         ProductVariant  @relation(fields: [variantId], references: [id])
+
+  // Snapshots — order history must be immutable even if catalog is edited/deleted
+  productTitle    String
+  variantLabel    String                                       // "M / Black"
+  imageUrl        String?
+  sku             String
+  printroveSku    String?                                      // snapshot of printroveVariantId at order time
+
+  quantity        Int
+  unitPrice       Int                                          // paise (after any item-level discount, pre-tax)
+  lineTotal       Int                                          // unitPrice * quantity
+
+  createdAt       DateTime        @default(now())
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+model OrderStatusEvent {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  source    String                                             // "SYSTEM" | "ADMIN" | "PRINTROVE_WEBHOOK" | "RAZORPAY_WEBHOOK"
+  actorId   String?                                            // user/admin id if applicable
+  meta      Json?                                              // payload, notes
+  createdAt DateTime    @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+// Shipping / tracking — separate from Order so we can support
+// multi-parcel shipments in future without schema churn.
+model Shipment {
+  id                  String         @id @default(cuid())
+  orderId             String         @unique
+  order               Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courier             String?                                  // "Delhivery", "BlueDart", "Shiprocket"
+  courierServiceCode  String?
+  awbNumber           String?        @unique                   // airway bill / tracking number
+  trackingUrl         String?
+  status              ShipmentStatus @default(PENDING)
+  shippedAt           DateTime?
+  deliveredAt         DateTime?
+  estimatedDeliveryAt DateTime?
+  lastUpdateAt        DateTime?
+  rawProviderPayload  Json?                                    // last webhook for debugging
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([awbNumber])
+  @@index([status])
+}
+
+// =====================================================================
+// PAYMENTS (Razorpay)
+// =====================================================================
+
+model Payment {
+  id                    String        @id @default(cuid())
+  orderId               String        @unique
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Razorpay identifiers
+  razorpayOrderId       String        @unique                  // order_XXXX
+  razorpayPaymentId     String?       @unique                  // pay_XXXX, set on capture
+  razorpaySignature     String?                                // for verification audit
+  razorpayReceipt       String                                 // our orderNumber sent as receipt
+
+  amount                Int                                    // paise
+  amountRefunded        Int           @default(0)
+  currency              String        @default("INR")
+
+  method                PaymentMethod?
+  bank                  String?
+  wallet                String?
+  vpa                   String?                                // UPI VPA if applicable
+  cardLast4             String?
+  cardNetwork           String?                                // Visa, Mastercard, RuPay
+
+  status                PaymentStatus @default(CREATED)
+  failureReason         String?
+  capturedAt            DateTime?
+  failedAt              DateTime?
+
+  // Idempotency / audit
+  idempotencyKey        String?       @unique
+  rawCreatePayload      Json?                                  // what we sent to Razorpay
+  rawVerifyPayload      Json?                                  // what client posted back
+  rawWebhookPayload     Json?                                  // last relevant webhook event
+
+  refunds               Refund[]
+
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([status, createdAt])
+  @@index([razorpayPaymentId])
+}
+
+model Refund {
+  id                 String       @id @default(cuid())
+  orderId            String
+  order              Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentId          String
+  payment            Payment      @relation(fields: [paymentId], references: [id])
+
+  razorpayRefundId   String?      @unique                      // rfnd_XXXX
+  amount             Int                                       // paise
+  status             RefundStatus @default(PENDING)
+  reason             String?
+  initiatedByAdminId String?
+  notes              String?
+  rawProviderPayload Json?
+
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  processedAt        DateTime?
+
+  @@index([orderId])
+  @@index([status])
+}
+
+// =====================================================================
+// WISHLIST
+// =====================================================================
+
+model Wishlist {
+  id        String         @id @default(cuid())
+  userId    String         @unique
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     WishlistItem[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model WishlistItem {
+  id         String   @id @default(cuid())
+  wishlistId String
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  addedAt    DateTime @default(now())
+
+  @@unique([wishlistId, productId])
+  @@index([productId])
+}
+
+// =====================================================================
+// REVIEWS
+// =====================================================================
+
+model Review {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  rating          Int                                          // 1–5; validated at app layer
+  title           String?
+  body            String?
+  images          String[]                                     // Cloudinary URLs
+
+  // Moderation
+  isVerifiedPurchase Boolean @default(false)                   // true if user has a DELIVERED order with this product
+  isApproved         Boolean @default(false)                   // admin moderates before public
+  isHidden           Boolean @default(false)
+  moderationNotes    String?
+
+  helpfulCount    Int      @default(0)
+  reportedCount   Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([productId, userId])                                // one review per product per user
+  @@index([productId, isApproved, createdAt])
+  @@index([userId])
+}
+
+// =====================================================================
+// COUPONS
+// =====================================================================
+
+model Coupon {
+  id                String       @id @default(cuid())
+  code              String       @unique                       // "OTAKU10", "NARUTO200"
+  description       String?
+  type              CouponType
+  value             Int                                        // percent (1–100) OR flat paise, per type
+  minOrderAmount    Int?                                       // paise
+  maxDiscountAmount Int?                                       // paise, cap for percentage type
+
+  // Usage limits
+  usageLimit        Int?                                       // total redemptions allowed (null = unlimited)
+  usageCount        Int          @default(0)
+  perUserLimit      Int?         @default(1)
+
+  // Scope (MVP: sitewide or collection-restricted)
+  appliesToCollectionIds String[]                              // empty = sitewide
+  appliesToProductIds    String[]                              // empty = all
+  firstOrderOnly    Boolean      @default(false)
+
+  // Validity
+  status            CouponStatus @default(ACTIVE)
+  startsAt          DateTime?
+  endsAt            DateTime?
+
+  usages            CouponUsage[]
+  orders            Order[]
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([code])
+  @@index([status, endsAt])
+}
+
+model CouponUsage {
+  id         String   @id @default(cuid())
+  couponId   String
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId    String?                                           // populated once used on an order
+  amountSaved Int                                              // paise
+  usedAt     DateTime @default(now())
+
+  @@unique([couponId, orderId])                                // one usage record per coupon per order
+  @@index([couponId, userId])
+  @@index([userId])
+}
+
+// =====================================================================
+// WEBHOOK IDEMPOTENCY
+// =====================================================================
+
+// Dedupe webhook deliveries. Razorpay retries until 2xx — without this table
+// we'd double-apply state mutations. Unique on (provider, eventId).
+model ProcessedWebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String                                  // "RAZORPAY" | "PRINTROVE"
+  eventId     String                                  // x-razorpay-event-id
+  eventType   String
+  payloadHash String?                                 // SHA-256 of raw body
+  createdAt   DateTime @default(now())
+
+  @@unique([provider, eventId])
+  @@index([provider, createdAt])
+}
+
+// =====================================================================
+// RECEIPTS
+// =====================================================================
+
+model Receipt {
+  id            String   @id @default(cuid())
+  orderId       String   @unique
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  receiptNumber String   @unique
+  pdfUrl        String?                                // Cloudinary, generated on demand
+  issuedAt      DateTime @default(now())
+
+  @@index([receiptNumber])
+}
+
+// =====================================================================
+// AUDIT LOG (admin actions, sensitive events)
+// =====================================================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String                                             // "ORDER_REFUND", "PRODUCT_DELETE", "USER_ROLE_CHANGE"
+  entity    String                                             // "Order", "Product", "User"
+  entityId  String
+  diff      Json?                                              // before/after
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}

@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Build
+dist/
+.next/
+out/
+
+# Prisma (migrations ARE tracked in git)
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# Vercel
+.vercel
+
+# Turbo
+.turbo
+
+# Debug
+*.pem
