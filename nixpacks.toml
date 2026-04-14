@@ -3,11 +3,10 @@
 # apps/api/node_modules — where tsc resolves imports from.
 
 [phases.setup]
-nixPkgs = ["nodejs_22", "npm-10_x"]
+nixPkgs = ["nodejs-22_x"]
 
 [phases.install]
 cmds = ["cd apps/api && npm ci --include=dev"]
-onlyIncludeFiles = ["apps/api/package.json", "apps/api/package-lock.json"]
 
 [phases.build]
 cmds = ["cd apps/api && npx prisma generate --schema=../../prisma/schema.prisma && npm run build"]
