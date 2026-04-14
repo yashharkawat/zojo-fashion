@@ -166,7 +166,7 @@ export class PrintroveClient {
         success: false,
         error: {
           code: errBody?.code ?? `HTTP_${res.status}`,
-          message: errBody?.message ?? res.statusText || 'Unknown error',
+          message: errBody?.message ?? (res.statusText || 'Unknown error'),
           details: errBody?.details,
           httpStatus: res.status,
         },
