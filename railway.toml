@@ -1,9 +1,8 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "cd apps/api && npm install --include=dev && npx prisma generate --schema=../../prisma/schema.prisma && npm run build"
+builder = "DOCKERFILE"
+dockerfilePath = "apps/api/Dockerfile"
 
 [deploy]
-startCommand = "cd apps/api && node dist/server.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
