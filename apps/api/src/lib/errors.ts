@@ -4,7 +4,7 @@ export abstract class AppError extends Error {
   abstract readonly statusCode: number;
   abstract readonly code: ErrorCode;
 
-  constructor(message: string, public readonly details?: unknown) {
+  constructor(message = 'An error occurred', public readonly details?: unknown) {
     super(message);
     this.name = this.constructor.name;
     Error.captureStackTrace?.(this, this.constructor);

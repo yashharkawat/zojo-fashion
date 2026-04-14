@@ -2,12 +2,12 @@ import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
 /**
  * Wraps async route handlers to forward rejections to Express error handler.
- * Without this, thrown async errors become unhandledRejection.
+ * Uses `any` for the handler signature so typed controllers don't conflict
+ * with Express's loose `ParsedQs` query type. Type safety lives in the
+ * controller + Zod validation layer, not the route wiring.
  */
-export const asyncHandler =
-  <R extends Request = Request>(
-    fn: (req: R, res: Response, next: NextFunction) => Promise<unknown>,
-  ): RequestHandler =>
-  (req, res, next) => {
-    Promise.resolve(fn(req as R, res, next)).catch(next);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const asyncHandler = (fn: (req: any, res: any, next: any) => Promise<any>): RequestHandler =>
+  (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
   };

@@ -232,8 +232,8 @@ export async function analytics(q: AdminAnalyticsQuery) {
     aov: paidOrders > 0 ? Math.round(gross / paidOrders) : 0,
     topProducts: topProducts.map((t) => ({
       title: t.productTitle,
-      unitsSold: t._sum.quantity ?? 0,
-      revenue: t._sum.lineTotal ?? 0,
+      unitsSold: t._sum?.quantity ?? 0,
+      revenue: t._sum?.lineTotal ?? 0,
     })),
     topAnimeSeries: topSeries.map((t) => ({
       series: t.series,
