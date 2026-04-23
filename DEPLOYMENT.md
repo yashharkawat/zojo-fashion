@@ -189,11 +189,7 @@ Vercel's image optimizer serves AVIF/WebP at the edge. No extra setup.
 
 ## 7. CI/CD — GitHub Actions
 
-Two workflows:
-1. **`ci.yml`** — runs on every PR: typecheck, lint, test
-2. **`deploy.yml`** — runs on push to `main`: triggers Render deploy hook
-
-(Vercel auto-deploys via its GitHub integration — no Actions needed for frontend.)
+**`ci.yml`** runs on PRs and pushes to `main`: `api-check` (Prisma generate + typecheck) and `web-check` (typecheck), then **`OK to deploy (all checks passed)`** if both succeed. Nothing else is required for Vercel or Railway to build from GitHub—those platforms auto-deploy on push *when* you allow it. If you use **“wait for CI”** (Railway) or branch protection, point the required check at the **CI** workflow (or the `OK to deploy` job), not a separate empty workflow.
 
 ---
 

@@ -19,8 +19,10 @@
 
 generator client {
   provider = "prisma-client-js"
-  // Single client for apps/api and apps/web (from repo root: `npm run prisma:generate` in `apps/api`)
-  output   = "../node_modules/.prisma/client"
+  // Must live under `apps/api/node_modules` so `tsc` in `apps/api` (and CI: `cd apps/api && …`)
+  // resolve the same generated client as the `@prisma/client` package there. Generating to the
+  // repo root breaks isolated `npm ci` in `apps/api` — CI typecheck and Railway build then fail.
+  output   = "../apps/api/node_modules/.prisma/client"
 }
 
 datasource db {

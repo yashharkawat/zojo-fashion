@@ -96,8 +96,7 @@ Then run `npm run dev` in `apps/api` and `apps/web` as in step 4.
 ```
 zojo-fashion/
 ├── .github/workflows/
-│   ├── ci.yml                    # PR checks: typecheck + lint + schema
-│   └── deploy.yml                # Main push: trigger Render deploy
+│   └── ci.yml                    # API + web typecheck; optional “OK to deploy” gate
 ├── prisma/
 │   └── schema.prisma             # 15+ models, India-specific
 ├── apps/

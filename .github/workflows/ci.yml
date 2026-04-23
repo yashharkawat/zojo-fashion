@@ -59,3 +59,13 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+  # ─── Gate for auto-deploys (Railway, Vercel) when "wait for checks" is enabled ───
+  deploy-gate:
+    name: OK to deploy (all checks passed)
+    needs: [api-check, web-check]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Signalled for Railway / Vercel
+        run: echo "api-check + web-check passed; connected GitHub auto-deploys may run."
