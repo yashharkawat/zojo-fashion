@@ -1,9 +1,9 @@
 import { configureStore } from '@reduxjs/toolkit';
-import authReducer from './slices/authSlice';
+import authReducer, { restoreAccessToken } from './slices/authSlice';
 import cartReducer, { hydrateCart, type CartState } from './slices/cartSlice';
 import uiReducer from './slices/uiSlice';
+import { clearStoredAccessToken, getStoredAccessToken, setStoredAccessToken } from '@/lib/authStorage';
 
-const AUTH_STORAGE_KEY = 'zojo.auth.accessToken';
 const CART_STORAGE_KEY = 'zojo.cart.v1';
 
 export function makeStore() {
@@ -16,27 +16,32 @@ export function makeStore() {
     middleware: (getDefault) => getDefault({ serializableCheck: true }),
   });
 
-  // ── Hydrate from localStorage on client ──
   if (typeof window !== 'undefined') {
+    try {
+      const token = getStoredAccessToken();
+      if (token) {
+        store.dispatch(restoreAccessToken(token));
+      }
+    } catch {
+      /* ignore */
+    }
     try {
       const raw = localStorage.getItem(CART_STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as CartState;
-        store.dispatch(hydrateCart(parsed));
+        store.dispatch(hydrateCart(JSON.parse(raw) as CartState));
       }
     } catch {
       /* ignore corrupted storage */
     }
 
-    // Persist cart on every change
     store.subscribe(() => {
       try {
         const state = store.getState();
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state.cart));
         if (state.auth.accessToken) {
-          localStorage.setItem(AUTH_STORAGE_KEY, state.auth.accessToken);
+          setStoredAccessToken(state.auth.accessToken);
         } else {
-          localStorage.removeItem(AUTH_STORAGE_KEY);
+          clearStoredAccessToken();
         }
       } catch {
         /* storage quota / private mode */

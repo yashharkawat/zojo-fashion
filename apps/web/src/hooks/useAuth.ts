@@ -11,7 +11,8 @@ export function useAuth() {
     accessToken,
     user,
     status,
-    isAuthenticated: status === 'authenticated' && !!accessToken,
+    /** Session established after login or bootstrap (either `user` or `accessToken` is enough for UI). */
+    isAuthenticated: status === 'authenticated' && (!!user || !!accessToken),
     isAdmin: !!user && ['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].includes(user.role),
     login: (accessToken: string, user: PublicUser) => dispatch(setAuth({ accessToken, user })),
     logout: () => dispatch(logout()),

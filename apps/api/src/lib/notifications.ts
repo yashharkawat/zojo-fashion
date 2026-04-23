@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import { logger } from '../config/logger';
 
 /**
@@ -33,10 +34,36 @@ export interface NotificationResult {
 // ──────────────── Email ────────────────
 
 export async function sendEmail(payload: EmailPayload): Promise<NotificationResult> {
+  const gUser = process.env.GMAIL_USER;
+  const gPass = process.env.GMAIL_APP_PASSWORD;
+  if (gUser && gPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: gUser, pass: gPass },
+      });
+      const from = process.env.EMAIL_FROM ?? `Zojo Fashion <${gUser}>`;
+      const sent = await transporter.sendMail({
+        from,
+        to: payload.to,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+      });
+      return { ok: true, providerId: sent.messageId };
+    } catch (err) {
+      logger.error({ err, to: payload.to }, 'Gmail send failed');
+      return { ok: false, reason: err instanceof Error ? err.message : 'gmail error' };
+    }
+  }
+
   const key = process.env.RESEND_API_KEY;
   if (!key) {
-    logger.info({ to: payload.to, subject: payload.subject }, '[email:stub] would send');
-    return { ok: true, reason: 'stubbed (RESEND_API_KEY not set)' };
+    logger.info(
+      { to: payload.to, subject: payload.subject },
+      '[email:stub] set GMAIL_USER+GMAIL_APP_PASSWORD or RESEND_API_KEY',
+    );
+    return { ok: true, reason: 'stubbed (no GMAIL or RESEND configured)' };
   }
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -122,8 +149,8 @@ export async function notifyOrderConfirmed(ctx: OrderNotificationContext): Promi
       subject: `Order ${ctx.orderNumber} confirmed — Zojo Fashion`,
       html: `
         <h2>Thanks, ${escapeHtml(ctx.customerName)}!</h2>
-        <p>Your order <strong>${ctx.orderNumber}</strong> (${inr(ctx.totalPaise)}) has been received and sent to production.</p>
-        <p>We'll email you once it ships. Typical turnaround is 3–5 business days.</p>
+        <p>Your order <strong>${ctx.orderNumber}</strong> (${inr(ctx.totalPaise)}) is confirmed.</p>
+        <p>We'll email you when it ships.</p>
       `,
       tags: { type: 'order_confirmed', orderNumber: ctx.orderNumber },
     }),

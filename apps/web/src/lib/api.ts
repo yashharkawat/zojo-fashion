@@ -76,16 +76,29 @@ async function performRequest<T>(
   void _skip;
   void _ignored;
 
-  const res = await fetch(`${BASE}${path}`, {
-    ...rest,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(explicitToken ? { Authorization: `Bearer ${explicitToken}` } : {}),
-      ...(headers ?? {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const url = `${BASE}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...rest,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(explicitToken ? { Authorization: `Bearer ${explicitToken}` } : {}),
+        ...(headers ?? {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    // Browser shows this as "Failed to fetch" — almost always: API not running, wrong URL, or CORS.
+    const isNet = e instanceof TypeError;
+    const hint = isNet
+      ? `Cannot reach the API at ${BASE}. Start the backend (cd apps/api && npm run dev) and ensure NEXT_PUBLIC_API_BASE_URL matches.`
+      : e instanceof Error
+        ? e.message
+        : 'Network request failed';
+    throw new ApiClientError(hint, 'UNKNOWN', 0);
+  }
 
   let payload: ApiResponse<T> | null = null;
   try {
@@ -119,7 +132,9 @@ async function withAutoRefresh<T>(
       err.status === 401 &&
       !init.skipAuthRefresh &&
       path !== '/auth/refresh' &&
-      path !== '/auth/login'
+      path !== '/auth/login' &&
+      path !== '/auth/google' &&
+      path !== '/auth/register'
     ) {
       const newToken = await refreshAccessToken();
       if (!newToken) {

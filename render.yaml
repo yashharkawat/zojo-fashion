@@ -47,13 +47,6 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
-      # ─── Printrove ─────────────────────────────────────
-      - key: PRINTROVE_API_URL
-        value: https://api.printrove.com/v1
-      - key: PRINTROVE_API_KEY
-        sync: false
-      - key: PRINTROVE_WEBHOOK_SECRET
-        sync: false
       # ─── Notifications (optional — stubs when absent) ──
       - key: RESEND_API_KEY
         sync: false

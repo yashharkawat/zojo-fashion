@@ -5,14 +5,16 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { z } from 'zod';
 
+import { GoogleAuthBlock, googleAuthEnabled } from '@/components/auth/GoogleAuthBlock';
 import { Input } from '@/components/ui/Input';
+import { useStore } from 'react-redux';
 import { useAppDispatch } from '@/store/hooks';
 import { pushToast } from '@/store/slices/uiSlice';
 import { setAuth } from '@/store/slices/authSlice';
-import { authApi } from '@/features/auth/api';
+import { postLoginCartSync } from '@/features/cart/postLoginSync';
+import { authApi, type AuthResult } from '@/features/auth/api';
+import type { RootState } from '@/store';
 import { ApiClientError } from '@/types/api';
-
-const TOKEN_KEY = 'zojo.auth.accessToken';
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -30,10 +32,26 @@ export function EmailPasswordForm({ onSuccess, defaultNext = '/' }: EmailPasswor
   const router = useRouter();
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
+  const store = useStore<RootState>();
 
   const [values, setValues] = useState<Partial<LoginInput>>({});
   const [errors, setErrors] = useState<Partial<Record<keyof LoginInput, string>>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  async function afterGoogle(r: AuthResult) {
+    dispatch(setAuth({ accessToken: r.accessToken, user: r.user }));
+    await postLoginCartSync(dispatch, () => store.getState());
+    dispatch(
+      pushToast({
+        kind: 'success',
+        message: `Welcome back, ${r.user.firstName ?? 'friend'}`,
+        duration: 2500,
+      }),
+    );
+    onSuccess?.();
+    const next = searchParams.get('next') || defaultNext;
+    router.replace(decodeURIComponent(next));
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -54,9 +72,7 @@ export function EmailPasswordForm({ onSuccess, defaultNext = '/' }: EmailPasswor
     try {
       const { user, accessToken } = await authApi.login(parsed.data);
       dispatch(setAuth({ accessToken, user }));
-      try {
-        window.localStorage.setItem(TOKEN_KEY, accessToken);
-      } catch { /* ignore */ }
+      await postLoginCartSync(dispatch, () => store.getState());
       dispatch(pushToast({ kind: 'success', message: `Welcome back, ${user.firstName ?? 'friend'}`, duration: 2500 }));
       onSuccess?.();
 
@@ -76,6 +92,25 @@ export function EmailPasswordForm({ onSuccess, defaultNext = '/' }: EmailPasswor
   }
 
   return (
+    <div className="space-y-4">
+      <GoogleAuthBlock
+        mode="login"
+        onAuthed={afterGoogle}
+        onFailure={(m) =>
+          dispatch(pushToast({ kind: 'error', message: m, duration: 5000 }))
+        }
+      />
+      {googleAuthEnabled() && (
+        <div className="relative py-1" role="separator" aria-label="Or sign in with email">
+          <div className="absolute inset-0 flex items-center" aria-hidden>
+            <div className="w-full border-t border-bg-border" />
+          </div>
+          <div className="relative flex justify-center text-[10px] font-mono uppercase tracking-[0.25em] text-fg-muted">
+            <span className="bg-bg-base px-2">Or with email</span>
+          </div>
+        </div>
+      )}
+
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <Input
         label="Email"
@@ -111,5 +146,6 @@ export function EmailPasswordForm({ onSuccess, defaultNext = '/' }: EmailPasswor
         {submitting ? 'Logging in…' : 'Log in'}
       </button>
     </form>
+    </div>
   );
 }

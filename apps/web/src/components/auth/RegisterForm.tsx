@@ -4,14 +4,16 @@ import { useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { z } from 'zod';
 
+import { GoogleAuthBlock, googleAuthEnabled } from '@/components/auth/GoogleAuthBlock';
 import { Input } from '@/components/ui/Input';
+import { useStore } from 'react-redux';
 import { useAppDispatch } from '@/store/hooks';
 import { pushToast } from '@/store/slices/uiSlice';
 import { setAuth } from '@/store/slices/authSlice';
-import { authApi } from '@/features/auth/api';
+import { postLoginCartSync } from '@/features/cart/postLoginSync';
+import { authApi, type AuthResult } from '@/features/auth/api';
+import type { RootState } from '@/store';
 import { ApiClientError } from '@/types/api';
-
-const TOKEN_KEY = 'zojo.auth.accessToken';
 
 const registerSchema = z.object({
   firstName: z.string().trim().min(1, 'Your name is required').max(50),
@@ -26,12 +28,28 @@ export function RegisterForm({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
+  const store = useStore<RootState>();
 
   const [values, setValues] = useState<Partial<RegisterInput>>({
     marketingOptIn: true,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterInput, string>>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  async function finishSession(result: AuthResult, toastMessage: string) {
+    dispatch(setAuth({ accessToken: result.accessToken, user: result.user }));
+    await postLoginCartSync(dispatch, () => store.getState());
+    dispatch(
+      pushToast({
+        kind: 'success',
+        message: toastMessage,
+        duration: 3500,
+      }),
+    );
+    onSuccess?.();
+    const next = searchParams.get('next') || '/';
+    router.replace(decodeURIComponent(next));
+  }
 
   const set = <K extends keyof RegisterInput>(k: K, v: RegisterInput[K]) => {
     setValues((prev) => ({ ...prev, [k]: v }));
@@ -54,18 +72,10 @@ export function RegisterForm({ onSuccess }: { onSuccess?: () => void }) {
     setSubmitting(true);
     try {
       const { user, accessToken } = await authApi.register(parsed.data);
-      dispatch(setAuth({ accessToken, user }));
-      try {
-        window.localStorage.setItem(TOKEN_KEY, accessToken);
-      } catch { /* ignore */ }
-      dispatch(pushToast({
-        kind: 'success',
-        message: 'Welcome to Zojo! Check your email to verify.',
-        duration: 3500,
-      }));
-      onSuccess?.();
-      const next = searchParams.get('next') || '/';
-      router.replace(decodeURIComponent(next));
+      await finishSession(
+        { user, accessToken },
+        'Welcome to Zojo! Check your email to verify.',
+      );
     } catch (err) {
       const msg =
         err instanceof ApiClientError && err.code === 'CONFLICT'
@@ -83,6 +93,31 @@ export function RegisterForm({ onSuccess }: { onSuccess?: () => void }) {
   }
 
   return (
+    <div className="space-y-4">
+      <GoogleAuthBlock
+        mode="register"
+        marketingOptIn={values.marketingOptIn ?? true}
+        onAuthed={async (r) =>
+          finishSession(r, "Welcome to Zojo! You're signed in with Google.")
+        }
+        onFailure={(m) =>
+          dispatch(
+            pushToast({ kind: 'error', message: m, duration: 5000 }),
+          )
+        }
+      />
+
+      {googleAuthEnabled() && (
+        <div className="relative py-1" role="separator" aria-label="Or register with email">
+          <div className="absolute inset-0 flex items-center" aria-hidden>
+            <div className="w-full border-t border-bg-border" />
+          </div>
+          <div className="relative flex justify-center text-[10px] font-mono uppercase tracking-[0.25em] text-fg-muted">
+            <span className="bg-bg-base px-2">Or register with email</span>
+          </div>
+        </div>
+      )}
+
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <Input
         label="First name"
@@ -144,5 +179,6 @@ export function RegisterForm({ onSuccess }: { onSuccess?: () => void }) {
         By continuing you agree to the Terms & Privacy policy.
       </p>
     </form>
+    </div>
   );
 }

@@ -5,7 +5,7 @@ export function ProductGrid({ products }: { products: ProductCardData[] }) {
   if (products.length === 0) {
     return (
       <div className="rounded-xl border border-bg-border bg-bg-elevated p-8 text-center text-fg-secondary">
-        No products found. Try clearing filters.
+        No products found in the catalog for this view.
       </div>
     );
   }

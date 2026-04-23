@@ -8,22 +8,17 @@ export interface PaymentStepProps {
   orderNumber: string;
   totalPaise: number;
   accessToken: string;
-  codAvailable?: boolean;
   customerEmail?: string;
 }
 
 /**
- * Wraps CheckoutButton with an order-aware header. CheckoutButton handles:
- *   - /payments/create (Razorpay or COD)
- *   - /payments/verify (HMAC)
- *   - Success + pending routing
+ * Wraps CheckoutButton: /payments/create, /payments/verify, success + pending routes.
  */
 export function PaymentStep({
   orderId,
   orderNumber,
   totalPaise,
   accessToken,
-  codAvailable = true,
   customerEmail,
 }: PaymentStepProps) {
   return (
@@ -42,11 +37,7 @@ export function PaymentStep({
         )}
       </div>
 
-      <CheckoutButton
-        orderId={orderId}
-        accessToken={accessToken}
-        codAvailable={codAvailable && totalPaise <= 500_000}
-      />
+      <CheckoutButton orderId={orderId} accessToken={accessToken} />
 
       <p className="flex items-center justify-center gap-2 text-xs text-fg-muted">
         <LockIcon className="h-3.5 w-3.5" />

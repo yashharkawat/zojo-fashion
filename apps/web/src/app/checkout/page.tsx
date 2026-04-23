@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, Suspense } from 'react';
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -9,7 +9,10 @@ import { useCart } from '@/hooks/useCart';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { pushToast } from '@/store/slices/uiSlice';
 import { api } from '@/lib/api';
+import { e164ToLocal10 } from '@/lib/phone';
 import { computeCartPricing } from '@/lib/pricing';
+import { createAddress, listAddresses, type SavedAddressRow } from '@/features/addresses/api';
+import { ApiClientError } from '@/types/api';
 
 import { PageTransition } from '@/components/motion/PageTransition';
 import { Stepper } from '@/components/ui/Stepper';
@@ -36,6 +39,55 @@ function formatDeliveryWindow(minDays = 3, maxDays = 6): string {
   return `${fmt(from)} — ${fmt(to)}`;
 }
 
+function persistFingerprint(
+  a: Pick<
+    AddressInput,
+    'fullName' | 'phone' | 'line1' | 'line2' | 'landmark' | 'city' | 'state' | 'pincode'
+  >,
+) {
+  return JSON.stringify({
+    fullName: a.fullName,
+    phone: a.phone,
+    line1: a.line1,
+    line2: a.line2 ?? '',
+    landmark: a.landmark ?? '',
+    city: a.city,
+    state: a.state,
+    pincode: a.pincode,
+  });
+}
+
+function fingerprintFromSavedRow(row: SavedAddressRow) {
+  return JSON.stringify({
+    fullName: row.fullName,
+    phone: row.phone,
+    line1: row.line1,
+    line2: row.line2 ?? '',
+    landmark: row.landmark ?? '',
+    city: row.city,
+    state: row.state,
+    pincode: row.pincode,
+  });
+}
+
+function rowToFormDefaults(
+  row: SavedAddressRow,
+  email: string,
+): Partial<AddressInput> {
+  return {
+    fullName: row.fullName,
+    phone: e164ToLocal10(row.phone),
+    email,
+    line1: row.line1,
+    line2: row.line2 ?? undefined,
+    landmark: row.landmark ?? undefined,
+    city: row.city,
+    state: row.state as AddressInput['state'],
+    pincode: row.pincode,
+    saveForLater: true,
+  };
+}
+
 function CheckoutInner() {
   const dispatch = useAppDispatch();
   const mounted = useHasMounted();
@@ -46,8 +98,41 @@ function CheckoutInner() {
   const [stepIdx, setStepIdx] = useState(0);
   const [reachedIdx, setReachedIdx] = useState(0);
   const [address, setAddress] = useState<AddressInput | null>(null);
+  const [bootstrappedDefaults, setBootstrappedDefaults] = useState<Partial<AddressInput> | null>(null);
+  const [addressFormKey, setAddressFormKey] = useState(0);
+  const lastSavedFpRef = useRef<string | null>(null);
+  const userRef = useRef(user);
+  userRef.current = user;
+  const [addrBookReady, setAddrBookReady] = useState(false);
+  const [savedAddressId, setSavedAddressId] = useState<string | null>(null);
   const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!mounted || !isAuthenticated || !accessToken || addrBookReady) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await listAddresses();
+        if (cancelled) return;
+        if (list.length) {
+          const row = list.find((x) => x.isDefault) ?? list[0]!;
+          const email = userRef.current?.email ?? '';
+          setBootstrappedDefaults(rowToFormDefaults(row, email));
+          setSavedAddressId(row.id);
+          lastSavedFpRef.current = fingerprintFromSavedRow(row);
+          setAddressFormKey((k) => k + 1);
+        }
+      } catch {
+        /* no saved address yet */
+      } finally {
+        if (!cancelled) setAddrBookReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, isAuthenticated, accessToken, addrBookReady]);
 
   const pricing = useMemo(
     () =>
@@ -96,7 +181,26 @@ function CheckoutInner() {
   }
 
   // ── Step handlers ───────────────────────────────────────
-  function onAddressSubmit(values: AddressInput) {
+  async function onAddressSubmit(values: AddressInput) {
+    if (values.saveForLater) {
+      const fp = persistFingerprint(values);
+      if (savedAddressId && lastSavedFpRef.current === fp) {
+        /* already stored for this exact payload (e.g. pre-filled default) */
+      } else {
+        try {
+          const created = await createAddress(values);
+          setSavedAddressId(created.id);
+          lastSavedFpRef.current = fp;
+        } catch (err) {
+          const msg = err instanceof ApiClientError ? err.message : 'Could not save address';
+          dispatch(pushToast({ kind: 'error', message: msg, duration: 4000 }));
+          return;
+        }
+      }
+    } else {
+      setSavedAddressId(null);
+      lastSavedFpRef.current = null;
+    }
     setAddress(values);
     setStepIdx(1);
     setReachedIdx((r) => Math.max(r, 1));
@@ -110,17 +214,19 @@ function CheckoutInner() {
     }
     setIsSubmitting(true);
     try {
-      // Real wiring (week 2):
-      //   1. POST /addresses (if saveForLater and no existing) → addressId
-      //   2. POST /orders { shippingAddressId, items, couponCode }
-      // MVP path below uses a placeholder; adapt when address module ships.
+      let shippingAddressId = savedAddressId;
+      if (!shippingAddressId) {
+        const created = await createAddress(address);
+        shippingAddressId = created.id;
+        setSavedAddressId(created.id);
+      }
 
       const order = await api<CreatedOrder>('/orders', {
         method: 'POST',
         token: accessToken,
         body: {
           items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
-          shippingAddressId: 'STUB_ADDRESS_ID',
+          shippingAddressId,
           couponCode: couponCode ?? undefined,
         },
       });
@@ -152,12 +258,15 @@ function CheckoutInner() {
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div>
             <AddressForm
+              key={addressFormKey}
               defaultValues={{
+                ...(bootstrappedDefaults ?? {}),
                 ...(address ?? {}),
-                email: address?.email ?? user?.email ?? '',
-                phone: address?.phone ?? user?.phone ?? '',
+                email: address?.email ?? bootstrappedDefaults?.email ?? user?.email ?? '',
+                phone: address?.phone ?? bootstrappedDefaults?.phone ?? user?.phone ?? '',
                 fullName:
                   address?.fullName ??
+                  bootstrappedDefaults?.fullName ??
                   [user?.firstName, user?.lastName].filter(Boolean).join(' '),
               }}
               onSubmit={onAddressSubmit}
@@ -201,7 +310,6 @@ function CheckoutInner() {
           orderNumber={createdOrder.orderNumber}
           totalPaise={createdOrder.total}
           accessToken={accessToken}
-          codAvailable={createdOrder.total <= 500_000}
           customerEmail={address?.email ?? user?.email ?? undefined}
         />
       )}

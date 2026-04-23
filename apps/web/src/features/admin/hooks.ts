@@ -55,19 +55,3 @@ export function useUpdateOrderStatus() {
     },
   });
 }
-
-export function useRetryPrintrove() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => adminApi.retryPrintrove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'orders'] }),
-  });
-}
-
-export function useSyncPrintrove() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => adminApi.syncPrintrove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'orders'] }),
-  });
-}

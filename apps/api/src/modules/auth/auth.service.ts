@@ -1,4 +1,5 @@
 import { VerificationTokenType, type Prisma } from '@prisma/client';
+import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { logger } from '../../config/logger';
@@ -33,6 +34,7 @@ import type {
   EmailVerifyBody,
   PasswordResetRequestBody,
   PasswordResetConfirmBody,
+  GoogleSignInBody,
 } from './auth.schema';
 
 export interface AuthTokens {
@@ -90,6 +92,10 @@ const USER_SELECT = {
   emailVerified: true,
   phoneVerified: true,
 } as const;
+
+const USER_SELECT_GOOGLE = { ...USER_SELECT, googleId: true } as const;
+
+const googleOauth = new OAuth2Client();
 
 async function issueTokens(
   payload: AccessTokenPayload,
@@ -180,6 +186,113 @@ export async function login(
     meta.ip,
   );
 
+  return { user: toPublicUser(user), tokens };
+}
+
+export async function signInWithGoogle(
+  input: GoogleSignInBody,
+  meta: { userAgent?: string; ip?: string },
+): Promise<{ user: PublicUser; tokens: AuthTokens }> {
+  if (!env.GOOGLE_CLIENT_ID) {
+    throw new ValidationError('Google sign-in is not enabled on this server');
+  }
+
+  let ticket: import('google-auth-library').LoginTicket;
+  try {
+    ticket = await googleOauth.verifyIdToken({
+      idToken: input.idToken,
+      audience: env.GOOGLE_CLIENT_ID,
+    });
+  } catch (err) {
+    logger.warn({ err }, 'Google ID token verification failed');
+    throw new UnauthorizedError('Invalid or expired Google sign-in');
+  }
+
+  const payload = ticket.getPayload();
+  if (!payload?.sub || !payload.email) {
+    throw new UnauthorizedError('Invalid Google sign-in');
+  }
+
+  const sub = payload.sub;
+  const email = payload.email.toLowerCase();
+  const firstNameRaw = (
+    payload.given_name?.trim() ||
+    payload.name?.split(/\s+/)[0]?.trim() ||
+    'Friend'
+  )
+    .trim()
+    .slice(0, 50) || 'Friend';
+  const lastName = payload.family_name?.trim().slice(0, 50) ?? null;
+  const emailVerified = payload.email_verified === true;
+
+  const byGoogle = await prisma.user.findUnique({
+    where: { googleId: sub },
+    select: USER_SELECT_GOOGLE,
+  });
+  if (byGoogle) {
+    await prisma.user.update({
+      where: { id: byGoogle.id },
+      data: { lastLoginAt: new Date() },
+    });
+    const tokens = await issueTokens(
+      { sub: byGoogle.id, role: byGoogle.role, email: byGoogle.email },
+      meta.userAgent,
+      meta.ip,
+    );
+    return { user: toPublicUser(byGoogle), tokens };
+  }
+
+  const byEmail = await prisma.user.findUnique({
+    where: { email },
+    select: USER_SELECT_GOOGLE,
+  });
+  if (byEmail) {
+    if (byEmail.googleId && byEmail.googleId !== sub) {
+      throw new ConflictError(
+        'This email is already registered. Use the same sign-in method you used when you created your account.',
+      );
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: byEmail.id },
+      data: {
+        googleId: sub,
+        lastLoginAt: new Date(),
+        ...(!byEmail.emailVerified && emailVerified ? { emailVerified: new Date() } : {}),
+      },
+      select: USER_SELECT,
+    });
+    const tokens = await issueTokens(
+      { sub: updated.id, role: updated.role, email: updated.email },
+      meta.userAgent,
+      meta.ip,
+    );
+    return { user: toPublicUser(updated), tokens };
+  }
+
+  const passwordHash = await hashPassword(
+    `google-oauth-${sub}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  const marketing = input.marketingOptIn ?? true;
+
+  const user = await prisma.user.create({
+    data: {
+      email,
+      googleId: sub,
+      passwordHash,
+      firstName: firstNameRaw,
+      lastName,
+      emailVerified: emailVerified ? new Date() : null,
+      marketingOptIn: marketing,
+    },
+    select: USER_SELECT,
+  });
+
+  const tokens = await issueTokens(
+    { sub: user.id, role: user.role, email: user.email },
+    meta.userAgent,
+    meta.ip,
+  );
   return { user: toPublicUser(user), tokens };
 }
 

@@ -15,25 +15,24 @@ export function Hero() {
   return (
     <section
       aria-label="Featured drop"
-      // Use svh for stable mobile viewport (iOS URL bar no-jump); fall back to vh
-      className="relative h-[92vh] h-[92svh] min-h-[560px] w-full overflow-hidden bg-bg-base grain vignette"
+      className="hero-cinematic relative h-[92vh] h-[92svh] min-h-[560px] w-full overflow-hidden bg-bg-base grain vignette"
     >
       {/* Background visual — swap for licensed anime warrior key-art.
           Using a dark cinematic gradient as placeholder so it looks great
           out of the box. */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,rgba(255,69,0,0.28),transparent_55%),radial-gradient(ellipse_at_80%_70%,rgba(139,26,0,0.35),transparent_60%),linear-gradient(180deg,#0A0A0A_0%,#1A0500_55%,#0A0A0A_100%)]"
+        className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_30%_40%,rgba(255,69,0,0.28),transparent_55%),radial-gradient(ellipse_at_80%_70%,rgba(139,26,0,0.35),transparent_60%),linear-gradient(180deg,#0A0A0A_0%,#1A0500_55%,#0A0A0A_100%)]"
       />
 
       {/* Slanted highlight — katana-like streak */}
       <div
         aria-hidden
-        className="absolute -left-1/4 top-0 h-full w-[180%] rotate-[-12deg] bg-[linear-gradient(90deg,transparent_0%,rgba(255,69,0,0.06)_48%,rgba(255,255,255,0.04)_50%,rgba(255,69,0,0.06)_52%,transparent_100%)]"
+        className="absolute -left-1/4 top-0 z-0 h-full w-[180%] rotate-[-12deg] bg-[linear-gradient(90deg,transparent_0%,rgba(255,69,0,0.06)_48%,rgba(255,255,255,0.04)_50%,rgba(255,69,0,0.06)_52%,transparent_100%)]"
       />
 
       {/* Ember particles */}
-      <EmberParticles className="absolute inset-0 h-full w-full" />
+      <EmberParticles className="absolute inset-0 z-0 h-full w-full" />
 
       {/* Content */}
       <div className="relative z-10 mx-auto flex h-full max-w-7xl flex-col items-start justify-end px-4 pb-16 md:justify-center md:pb-0">
@@ -51,7 +50,7 @@ export function Hero() {
           initial={reduce ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.05 }}
-          className="font-display text-[22vw] leading-[0.8] tracking-tight text-fg-primary md:text-[13vw] lg:text-[11rem]"
+          className="hero-headline font-display tracking-tight"
         >
           WEAR THE <span className="text-ember">BOLD</span>
         </motion.h1>
@@ -87,10 +86,10 @@ export function Hero() {
             <ArrowIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Link>
           <Link
-            href="/products?sort=-createdAt"
+            href="/products"
             className="inline-flex items-center gap-2 rounded-lg border border-bg-border/80 bg-black/30 px-6 py-3.5 text-sm font-semibold uppercase tracking-widest text-fg-primary backdrop-blur-sm transition-colors hover:border-accent hover:text-accent"
           >
-            New Drops
+            All collections
           </Link>
         </motion.div>
       </div>

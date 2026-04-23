@@ -39,21 +39,15 @@ export class ApiClientError extends Error {
 }
 
 // Payment-specific response types (must match backend CreatePaymentResult)
-export type CreatePaymentResponse =
-  | {
-      method: 'RAZORPAY';
-      razorpayOrderId: string;
-      amount: number;
-      currency: 'INR';
-      keyId: string;
-      orderNumber: string;
-      prefill: { name: string; email: string; contact: string };
-    }
-  | {
-      method: 'COD';
-      orderNumber: string;
-      status: 'CONFIRMED';
-    };
+export type CreatePaymentResponse = {
+  method: 'RAZORPAY';
+  razorpayOrderId: string;
+  amount: number;
+  currency: 'INR';
+  keyId: string;
+  orderNumber: string;
+  prefill: { name: string; email: string; contact: string };
+};
 
 export interface VerifyPaymentResponse {
   orderNumber: string;

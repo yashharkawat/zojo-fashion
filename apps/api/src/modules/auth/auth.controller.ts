@@ -11,6 +11,7 @@ import type {
   EmailVerifyBody,
   PasswordResetRequestBody,
   PasswordResetConfirmBody,
+  GoogleSignInBody,
 } from './auth.schema';
 
 const REFRESH_COOKIE_NAME = 'rt';
@@ -50,6 +51,15 @@ export async function registerHandler(req: Request<unknown, unknown, RegisterBod
 
 export async function loginHandler(req: Request<unknown, unknown, LoginBody>, res: Response) {
   const { user, tokens } = await authService.login(req.body, {
+    userAgent: req.header('user-agent'),
+    ip: req.ip,
+  });
+  setRefreshCookie(res, tokens.refreshTokenRaw, tokens.refreshExpiresAt);
+  return ok(res, { user, accessToken: tokens.accessToken });
+}
+
+export async function googleSignInHandler(req: Request<unknown, unknown, GoogleSignInBody>, res: Response) {
+  const { user, tokens } = await authService.signInWithGoogle(req.body, {
     userAgent: req.header('user-agent'),
     ip: req.ip,
   });

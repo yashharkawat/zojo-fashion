@@ -4,13 +4,15 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Input } from '@/components/ui/Input';
+import { useStore } from 'react-redux';
 import { useAppDispatch } from '@/store/hooks';
 import { pushToast } from '@/store/slices/uiSlice';
 import { setAuth } from '@/store/slices/authSlice';
+import { postLoginCartSync } from '@/features/cart/postLoginSync';
 import { authApi } from '@/features/auth/api';
+import type { RootState } from '@/store';
 import { ApiClientError } from '@/types/api';
 
-const TOKEN_KEY = 'zojo.auth.accessToken';
 const PHONE_RE = /^\+91[6-9]\d{9}$/;
 
 export interface PhoneOtpFormProps {
@@ -24,6 +26,7 @@ export function PhoneOtpForm({ onSuccess, defaultNext = '/' }: PhoneOtpFormProps
   const router = useRouter();
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
+  const store = useStore<RootState>();
 
   const [stage, setStage] = useState<Stage>('enter-phone');
   const [phone, setPhone] = useState('+91');
@@ -84,9 +87,7 @@ export function PhoneOtpForm({ onSuccess, defaultNext = '/' }: PhoneOtpFormProps
         firstName: firstName.trim() || undefined,
       });
       dispatch(setAuth({ accessToken, user }));
-      try {
-        window.localStorage.setItem(TOKEN_KEY, accessToken);
-      } catch { /* ignore */ }
+      await postLoginCartSync(dispatch, () => store.getState());
       dispatch(pushToast({
         kind: 'success',
         message: created ? `Welcome to Zojo, ${user.firstName ?? 'friend'}` : `Welcome back`,

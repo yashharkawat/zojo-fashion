@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState, useSyncExternalStore, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { inr } from '@/lib/format';
 import { useCart } from '@/hooks/useCart';
@@ -15,12 +16,27 @@ export interface FlipProductCardData {
   animeSeries: string | null;
   frontImage: { url: string; alt: string | null };
   backImage: { url: string; alt: string | null } | null;
-  defaultVariantId: string;
-  defaultVariantLabel: string;
+  /** When null (e.g. API without variants), Quick Add is hidden. */
+  defaultVariantId: string | null;
+  defaultVariantLabel: string | null;
 }
 
 /** next/image can't optimize data: URLs; bypass when detected. */
 const isDataUrl = (src: string): boolean => src.startsWith('data:');
+
+/** Desktop hover flip only — back mockup is ~1MB; load it on first pointer/hover, not for every card up front. */
+function useMediaMd() {
+  return useSyncExternalStore(
+    (notify) => {
+      if (typeof window === 'undefined') return () => undefined;
+      const m = window.matchMedia('(min-width: 768px)');
+      m.addEventListener('change', notify);
+      return () => m.removeEventListener('change', notify);
+    },
+    () => (typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false),
+    () => false,
+  );
+}
 
 /**
  * Featured product card with front/back hover flip (desktop) and a
@@ -42,6 +58,16 @@ export function FlipProductCard({
   priority?: boolean;
 }) {
   const { add } = useCart();
+  const isMd = useMediaMd();
+  const [loadBack, setLoadBack] = useState(false);
+  const [backReady, setBackReady] = useState(false);
+  const canFlip = isMd && !!product.backImage;
+  const shouldRenderBack = canFlip && loadBack;
+
+  useEffect(() => {
+    setLoadBack(false);
+    setBackReady(false);
+  }, [product.slug]);
 
   const discount =
     product.compareAtPrice && product.compareAtPrice > product.basePrice
@@ -51,12 +77,13 @@ export function FlipProductCard({
       : null;
 
   const onQuickAdd = () => {
+    if (!product.defaultVariantId) return;
     add({
       variantId: product.defaultVariantId,
       productId: product.id,
       productTitle: product.title,
       productSlug: product.slug,
-      variantLabel: product.defaultVariantLabel,
+      variantLabel: product.defaultVariantLabel ?? '',
       imageUrl: product.frontImage.url,
       unitPricePaise: product.basePrice,
       quantity: 1,
@@ -71,12 +98,21 @@ export function FlipProductCard({
       whileHover={{ y: -4 }}
       transition={{ type: 'spring', stiffness: 300, damping: 22 }}
       className="group relative"
+      onPointerEnter={() => {
+        if (canFlip) setLoadBack(true);
+      }}
+      onPointerDown={() => {
+        if (canFlip) setLoadBack(true);
+      }}
     >
       {/* Visual — the clickable card. NO interactive children inside this Link. */}
       <Link
         href={`/products/${product.slug}`}
         aria-label={product.title}
         className="block"
+        onFocus={() => {
+          if (canFlip) setLoadBack(true);
+        }}
       >
         <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-bg-elevated">
           <Image
@@ -88,18 +124,21 @@ export function FlipProductCard({
             sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
             className={`
               object-cover transition-opacity duration-500 ease-out
-              ${product.backImage ? 'md:group-hover:opacity-0' : ''}
+              ${product.backImage && canFlip && backReady ? 'md:group-hover:opacity-0' : ''}
             `}
           />
 
-          {product.backImage && (
+          {shouldRenderBack && product.backImage && (
             <Image
               src={product.backImage.url}
               alt={product.backImage.alt ?? `${product.title} (back)`}
               fill
+              loading="lazy"
               unoptimized={backUnopt}
+              onLoad={() => setBackReady(true)}
+              onError={() => setBackReady(true)}
               sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="hidden object-cover opacity-0 transition-opacity duration-500 ease-out md:block md:group-hover:opacity-100"
+              className="absolute inset-0 object-cover opacity-0 transition-opacity duration-500 ease-out group-hover:opacity-100"
             />
           )}
 
@@ -138,23 +177,25 @@ export function FlipProductCard({
 
       {/* Quick Add — absolute sibling of Link, overlays the image area.
           NOT inside the <a> (would be invalid HTML + keyboard trap). */}
-      <button
-        type="button"
-        onClick={onQuickAdd}
-        aria-label={`Quick add ${product.title} to cart`}
-        className="
-          absolute inset-x-3 bottom-[88px] flex items-center justify-center gap-2
-          rounded-lg bg-accent px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white
-          shadow-glow-sm transition-all
-          translate-y-2 opacity-100 md:translate-y-4 md:opacity-0
-          md:group-hover:translate-y-0 md:group-hover:opacity-100
-          hover:bg-accent-hover hover:shadow-glow
-          focus-visible:opacity-100 focus-visible:translate-y-0
-        "
-      >
-        <BagPlusIcon className="h-4 w-4" />
-        Quick Add
-      </button>
+      {product.defaultVariantId && (
+        <button
+          type="button"
+          onClick={onQuickAdd}
+          aria-label={`Quick add ${product.title} to cart`}
+          className="
+            absolute inset-x-3 bottom-[88px] flex items-center justify-center gap-2
+            rounded-lg bg-accent px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white
+            shadow-glow-sm transition-all
+            translate-y-2 opacity-100 md:translate-y-4 md:opacity-0
+            md:group-hover:translate-y-0 md:group-hover:opacity-100
+            hover:bg-accent-hover hover:shadow-glow
+            focus-visible:opacity-100 focus-visible:translate-y-0
+          "
+        >
+          <BagPlusIcon className="h-4 w-4" />
+          Quick Add
+        </button>
+      )}
     </motion.article>
   );
 }

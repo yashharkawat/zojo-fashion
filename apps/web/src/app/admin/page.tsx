@@ -12,7 +12,7 @@ import type { AdminOrder } from '@/features/admin/types';
 export default function AdminOverviewPage() {
   const analytics = useAdminAnalytics();
   const pendingOrders = useAdminOrders({ status: 'PENDING', pageSize: 5 });
-  const failedOrders = useAdminOrders({ printroveSyncStatus: 'FAILED', pageSize: 5 });
+  const confirmedOrders = useAdminOrders({ status: 'CONFIRMED', pageSize: 5 });
 
   const a = analytics.data;
 
@@ -69,9 +69,9 @@ export default function AdminOverviewPage() {
           isLoading={pendingOrders.isLoading}
         />
         <AttentionLane
-          title="Printrove sync failed"
-          rows={failedOrders.data?.data ?? []}
-          isLoading={failedOrders.isLoading}
+          title="Paid — awaiting fulfillment"
+          rows={confirmedOrders.data?.data ?? []}
+          isLoading={confirmedOrders.isLoading}
           emphasis
         />
       </section>

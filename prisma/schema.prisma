@@ -1,14 +1,15 @@
 // =====================================================================
 // Zojo Fashion — Prisma Schema
 // PostgreSQL + Prisma ORM
-// India-first e-commerce, Printrove POD fulfillment, Razorpay payments
+// India-first e-commerce, Razorpay payments
 // =====================================================================
 //
 // Conventions
 // - Money stored as INT in paise (₹1 = 100 paise). Never Float/Decimal in app.
 // - `cuid()` primary keys (URL-safe, sortable).
+// - `Cart` / `CartItem` back the authenticated cart; guest cart is Redux until login merge.
 // - Soft delete via `deletedAt` on Product/Variant — orders reference them forever.
-// - Snapshot fields (titleSnapshot, priceSnapshot) on CartItem/OrderItem to
+// - Snapshot fields on OrderItem to
 //   insulate against catalog changes mid-session / post-purchase edits.
 // - All timestamps in UTC. Display layer handles IST conversion.
 // - Phone: E.164 format (+91XXXXXXXXXX). Validated at app layer via Zod.
@@ -18,6 +19,8 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Single client for apps/api and apps/web (from repo root: `npm run prisma:generate` in `apps/api`)
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -46,8 +49,8 @@ enum Gender {
 
 enum OrderStatus {
   PENDING       // order created, payment not yet confirmed
-  CONFIRMED     // payment captured, ready to push to Printrove
-  PRINTING      // Printrove acknowledged, in production
+  CONFIRMED     // payment captured, awaiting fulfillment
+  PRINTING      // in production / being prepared
   SHIPPED       // dispatched with tracking
   DELIVERED     // delivered to customer
   CANCELLED     // cancelled before fulfillment
@@ -85,30 +88,10 @@ enum AddressType {
   OTHER
 }
 
-enum CouponType {
-  PERCENTAGE    // e.g., 10% off
-  FLAT          // e.g., ₹200 off
-  FREE_SHIPPING
-}
-
-enum CouponStatus {
-  ACTIVE
-  PAUSED
-  EXPIRED
-  EXHAUSTED
-}
-
 enum VerificationTokenType {
   OTP_LOGIN
   EMAIL_VERIFICATION
   PASSWORD_RESET
-}
-
-enum PrintroveSyncStatus {
-  NOT_SYNCED
-  SYNCED
-  FAILED
-  MANUAL_REVIEW
 }
 
 enum ShipmentStatus {
@@ -130,6 +113,8 @@ enum ShipmentStatus {
 model User {
   id              String     @id @default(cuid())
   email           String     @unique
+  /// Google "sub" from ID token; set when the user uses Sign in with Google
+  googleId        String?    @unique
   phone           String?    @unique              // E.164, +91XXXXXXXXXX
   emailVerified   DateTime?
   phoneVerified   DateTime?
@@ -152,13 +137,8 @@ model User {
   addresses       Address[]
   orders          Order[]
   cart            Cart?
-  wishlist        Wishlist?
-  reviews         Review[]
   refreshTokens       RefreshToken[]
   verificationTokens  VerificationToken[]
-  adminProfile        AdminProfile?
-  couponUsages        CouponUsage[]
-  auditLogs           AuditLog[]
 
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
@@ -204,19 +184,6 @@ model VerificationToken {
   @@unique([type, identifier, codeHash])
 }
 
-// Admin-specific profile / permissions.
-// Kept separate from User so customer-facing queries don't load admin noise.
-model AdminProfile {
-  id           String    @id @default(cuid())
-  userId       String    @unique
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName  String
-  permissions  String[]                            // granular: ["product.write", "order.refund", ...]
-  notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-}
-
 // =====================================================================
 // ADDRESS (India-specific)
 // =====================================================================
@@ -246,64 +213,8 @@ model Address {
 }
 
 // =====================================================================
-// CATALOG: Category, Product, Variant, Image, Collection
+// CATALOG: Product, Variant, Image
 // =====================================================================
-
-model Category {
-  id          String     @id @default(cuid())
-  slug        String     @unique                   // "t-shirts", "hoodies", "oversized"
-  name        String
-  description String?
-  imageUrl    String?
-  parentId    String?
-  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryTree")
-  sortOrder   Int        @default(0)
-  isActive    Boolean    @default(true)
-
-  products    Product[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  @@index([parentId, isActive])
-  @@index([slug])
-}
-
-// Collections = campaign/series drops (e.g., "Naruto Shippuden", "Psytrance Series")
-// Cross-cuts categories. A hoodie and a tee can both belong to "Attack on Titan".
-model Collection {
-  id             String              @id @default(cuid())
-  slug           String              @unique
-  title          String
-  subtitle       String?
-  description    String?
-  heroImage      String
-  mobileHeroImage String?
-  animeSeries    String?             // "Naruto", "AOT", "One Piece" — free text facet
-  isFeatured     Boolean             @default(false)
-  isActive       Boolean             @default(true)
-  sortOrder      Int                 @default(0)
-  startsAt       DateTime?
-  endsAt         DateTime?
-
-  products       CollectionProduct[]
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-
-  @@index([isActive, isFeatured, sortOrder])
-  @@index([animeSeries])
-}
-
-model CollectionProduct {
-  collectionId String
-  productId    String
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sortOrder    Int        @default(0)
-
-  @@id([collectionId, productId])
-  @@index([productId])
-}
 
 model Product {
   id                 String               @id @default(cuid())
@@ -311,28 +222,25 @@ model Product {
   title              String
   description        String                                    // markdown / plain
   shortDescription   String?
-  categoryId         String
-  category           Category             @relation(fields: [categoryId], references: [id])
+  /// Filter key for PLP (e.g. "oversized", "limited-edition") — no separate Category table
+  categorySlug       String
   basePrice          Int                                       // paise; variant price overrides
   compareAtPrice     Int?                                      // MRP for strike-through display
   gender             Gender               @default(MEN)
   animeSeries        String?                                   // "Naruto", "AOT" — denormalized for fast facet
+  /// Pl / PDP default when present — must match a `ProductVariant.color` and image `variantColor` rows
+  defaultColor       String?
   tags               String[]                                  // ["anime", "oversized", "psytrance"]
   material           String?                                   // "100% cotton, 240 GSM"
   careInstructions   String?
   sizeGuideUrl       String?
 
-  // Printrove mapping (product-level; variants carry SKU-level mapping)
-  printroveProductId String?
-  printroveSyncStatus PrintroveSyncStatus @default(NOT_SYNCED)
-  printroveLastSyncedAt DateTime?
-
   // SEO
   metaTitle          String?
   metaDescription    String?
 
-  // Stats (denormalized for fast PLP sorting — updated by triggers/jobs)
-  avgRating          Float?                                    // 0-5, null if no reviews
+  // Optional merchandising fields (no Review model — can be set manually in admin)
+  avgRating          Float?
   reviewCount        Int                  @default(0)
   soldCount          Int                  @default(0)
 
@@ -341,15 +249,12 @@ model Product {
 
   images             ProductImage[]
   variants           ProductVariant[]
-  reviews            Review[]
-  wishlistItems      WishlistItem[]
-  collections        CollectionProduct[]
 
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   deletedAt          DateTime?                                 // soft delete
 
-  @@index([categoryId, isActive, deletedAt])
+  @@index([categorySlug, isActive, deletedAt])
   @@index([animeSeries, isActive])
   @@index([isFeatured, isActive])
   @@index([slug])
@@ -371,10 +276,6 @@ model ProductVariant {
   // POD inventory: effectively unlimited but track for low-stock blanks
   stock              Int       @default(9999)
 
-  // Printrove SKU mapping — CRITICAL. Order push fails without this.
-  printroveVariantId String?   @unique
-  printroveBlankSku  String?                                   // Printrove's internal blank SKU ref
-
   isActive           Boolean   @default(true)
   cartItems          CartItem[]
   orderItems         OrderItem[]
@@ -385,7 +286,37 @@ model ProductVariant {
 
   @@index([productId, isActive, deletedAt])
   @@index([sku])
-  @@index([printroveVariantId])
+}
+
+// =====================================================================
+// CART (persisted for logged-in users; guest uses client-only state)
+// =====================================================================
+
+model Cart {
+  id         String     @id @default(cuid())
+  userId     String     @unique
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items      CartItem[]
+  couponCode String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model CartItem {
+  id            String         @id @default(cuid())
+  cartId        String
+  cart          Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId     String
+  variant       ProductVariant @relation(fields: [variantId], references: [id])
+  quantity      Int
+  priceSnapshot Int
+  titleSnapshot String
+  imageSnapshot String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([cartId, variantId])
+  @@index([variantId])
 }
 
 model ProductImage {
@@ -399,9 +330,20 @@ model ProductImage {
   height    Int?
   sortOrder Int      @default(0)
   isPrimary Boolean  @default(false)                           // shown on PLP card
+  /// When set, this asset is for that shirt color; null = all colors
+  variantColor String?
   createdAt DateTime @default(now())
 
   @@index([productId, sortOrder])
+  @@index([productId, variantColor])
+}
+
+// Singleton row for public storefront strings (footer socials, etc.)
+model SiteSettings {
+  id           String   @id @default("default")
+  instagramUrl String
+  youtubeUrl   String
+  updatedAt    DateTime @updatedAt
 }
 
 // =====================================================================
@@ -425,39 +367,6 @@ model HomepageBanner {
   updatedAt      DateTime  @updatedAt
 
   @@index([position, isActive, sortOrder])
-}
-
-// =====================================================================
-// CART
-// =====================================================================
-
-model Cart {
-  id         String     @id @default(cuid())
-  userId     String     @unique
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items      CartItem[]
-  couponCode String?                                           // applied but not yet consumed
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-}
-
-model CartItem {
-  id             String         @id @default(cuid())
-  cartId         String
-  cart           Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  variantId      String
-  variant        ProductVariant @relation(fields: [variantId], references: [id])
-  quantity       Int
-  // Snapshots so that if the catalog price changes mid-session,
-  // we don't silently change the user's cart total.
-  priceSnapshot  Int                                            // paise
-  titleSnapshot  String
-  imageSnapshot  String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  @@unique([cartId, variantId])
-  @@index([variantId])
 }
 
 // =====================================================================
@@ -491,25 +400,13 @@ model Order {
   cancelledAt     DateTime?
   cancelledReason String?
 
-  // Coupon
-  couponId        String?
-  coupon          Coupon?     @relation(fields: [couponId], references: [id])
-  couponCode      String?                                      // snapshot (coupon may be edited/deleted)
-
-  // Printrove fulfillment
-  printroveOrderId       String?   @unique
-  printroveSyncStatus    PrintroveSyncStatus @default(NOT_SYNCED)
-  printroveLastSyncedAt  DateTime?
-  printroveLastError     String?
-  printroveRetryCount    Int       @default(0)
+  /// Snapshot of applied promo code (rules are code-based, not FK to a Coupon table)
+  couponCode      String?
 
   // Relations
   items           OrderItem[]
   payment         Payment?                                     // 1:1
   shipment        Shipment?                                    // 1:1 (MVP; could become 1:N for split shipments later)
-  statusHistory   OrderStatusEvent[]
-  refunds         Refund[]
-  receipt         Receipt?
 
   // Meta
   notes           String?                                      // customer note
@@ -519,7 +416,6 @@ model Order {
 
   @@index([userId, placedAt(sort: Desc)])
   @@index([status, placedAt])
-  @@index([printroveSyncStatus, status])                       // for retry workers
   @@index([orderNumber])
   @@index([placedAt])
 }
@@ -536,7 +432,6 @@ model OrderItem {
   variantLabel    String                                       // "M / Black"
   imageUrl        String?
   sku             String
-  printroveSku    String?                                      // snapshot of printroveVariantId at order time
 
   quantity        Int
   unitPrice       Int                                          // paise (after any item-level discount, pre-tax)
@@ -546,19 +441,6 @@ model OrderItem {
 
   @@index([orderId])
   @@index([variantId])
-}
-
-model OrderStatusEvent {
-  id        String      @id @default(cuid())
-  orderId   String
-  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  status    OrderStatus
-  source    String                                             // "SYSTEM" | "ADMIN" | "PRINTROVE_WEBHOOK" | "RAZORPAY_WEBHOOK"
-  actorId   String?                                            // user/admin id if applicable
-  meta      Json?                                              // payload, notes
-  createdAt DateTime    @default(now())
-
-  @@index([orderId, createdAt])
 }
 
 // Shipping / tracking — separate from Order so we can support
@@ -621,199 +503,14 @@ model Payment {
   rawVerifyPayload      Json?                                  // what client posted back
   rawWebhookPayload     Json?                                  // last relevant webhook event
 
-  refunds               Refund[]
+  /// Latest Razorpay refund id we know of (for support / idempotency hints)
+  lastRazorpayRefundId  String?
+  /// JSON array of { razorpayRefundId, amount, status, at } — replaces separate Refund rows
+  refundEvents         Json?
 
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
   @@index([status, createdAt])
   @@index([razorpayPaymentId])
-}
-
-model Refund {
-  id                 String       @id @default(cuid())
-  orderId            String
-  order              Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  paymentId          String
-  payment            Payment      @relation(fields: [paymentId], references: [id])
-
-  razorpayRefundId   String?      @unique                      // rfnd_XXXX
-  amount             Int                                       // paise
-  status             RefundStatus @default(PENDING)
-  reason             String?
-  initiatedByAdminId String?
-  notes              String?
-  rawProviderPayload Json?
-
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  processedAt        DateTime?
-
-  @@index([orderId])
-  @@index([status])
-}
-
-// =====================================================================
-// WISHLIST
-// =====================================================================
-
-model Wishlist {
-  id        String         @id @default(cuid())
-  userId    String         @unique
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items     WishlistItem[]
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-}
-
-model WishlistItem {
-  id         String   @id @default(cuid())
-  wishlistId String
-  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  addedAt    DateTime @default(now())
-
-  @@unique([wishlistId, productId])
-  @@index([productId])
-}
-
-// =====================================================================
-// REVIEWS
-// =====================================================================
-
-model Review {
-  id              String   @id @default(cuid())
-  productId       String
-  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  rating          Int                                          // 1–5; validated at app layer
-  title           String?
-  body            String?
-  images          String[]                                     // Cloudinary URLs
-
-  // Moderation
-  isVerifiedPurchase Boolean @default(false)                   // true if user has a DELIVERED order with this product
-  isApproved         Boolean @default(false)                   // admin moderates before public
-  isHidden           Boolean @default(false)
-  moderationNotes    String?
-
-  helpfulCount    Int      @default(0)
-  reportedCount   Int      @default(0)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@unique([productId, userId])                                // one review per product per user
-  @@index([productId, isApproved, createdAt])
-  @@index([userId])
-}
-
-// =====================================================================
-// COUPONS
-// =====================================================================
-
-model Coupon {
-  id                String       @id @default(cuid())
-  code              String       @unique                       // "OTAKU10", "NARUTO200"
-  description       String?
-  type              CouponType
-  value             Int                                        // percent (1–100) OR flat paise, per type
-  minOrderAmount    Int?                                       // paise
-  maxDiscountAmount Int?                                       // paise, cap for percentage type
-
-  // Usage limits
-  usageLimit        Int?                                       // total redemptions allowed (null = unlimited)
-  usageCount        Int          @default(0)
-  perUserLimit      Int?         @default(1)
-
-  // Scope (MVP: sitewide or collection-restricted)
-  appliesToCollectionIds String[]                              // empty = sitewide
-  appliesToProductIds    String[]                              // empty = all
-  firstOrderOnly    Boolean      @default(false)
-
-  // Validity
-  status            CouponStatus @default(ACTIVE)
-  startsAt          DateTime?
-  endsAt            DateTime?
-
-  usages            CouponUsage[]
-  orders            Order[]
-
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-
-  @@index([code])
-  @@index([status, endsAt])
-}
-
-model CouponUsage {
-  id         String   @id @default(cuid())
-  couponId   String
-  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orderId    String?                                           // populated once used on an order
-  amountSaved Int                                              // paise
-  usedAt     DateTime @default(now())
-
-  @@unique([couponId, orderId])                                // one usage record per coupon per order
-  @@index([couponId, userId])
-  @@index([userId])
-}
-
-// =====================================================================
-// WEBHOOK IDEMPOTENCY
-// =====================================================================
-
-// Dedupe webhook deliveries. Razorpay retries until 2xx — without this table
-// we'd double-apply state mutations. Unique on (provider, eventId).
-model ProcessedWebhookEvent {
-  id          String   @id @default(cuid())
-  provider    String                                  // "RAZORPAY" | "PRINTROVE"
-  eventId     String                                  // x-razorpay-event-id
-  eventType   String
-  payloadHash String?                                 // SHA-256 of raw body
-  createdAt   DateTime @default(now())
-
-  @@unique([provider, eventId])
-  @@index([provider, createdAt])
-}
-
-// =====================================================================
-// RECEIPTS
-// =====================================================================
-
-model Receipt {
-  id            String   @id @default(cuid())
-  orderId       String   @unique
-  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  receiptNumber String   @unique
-  pdfUrl        String?                                // Cloudinary, generated on demand
-  issuedAt      DateTime @default(now())
-
-  @@index([receiptNumber])
-}
-
-// =====================================================================
-// AUDIT LOG (admin actions, sensitive events)
-// =====================================================================
-
-model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  action    String                                             // "ORDER_REFUND", "PRODUCT_DELETE", "USER_ROLE_CHANGE"
-  entity    String                                             // "Order", "Product", "User"
-  entityId  String
-  diff      Json?                                              // before/after
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now())
-
-  @@index([entity, entityId])
-  @@index([userId, createdAt])
-  @@index([action, createdAt])
 }

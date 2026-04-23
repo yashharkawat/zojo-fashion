@@ -28,7 +28,6 @@ async function paginated<T>(path: string): Promise<{ data: T[]; pagination: Pagi
 
 export interface AdminOrdersFilter {
   status?: OrderStatus;
-  printroveSyncStatus?: string;
   userId?: string;
   orderNumber?: string;
   dateFrom?: string;
@@ -39,8 +38,7 @@ export interface AdminOrdersFilter {
 
 export interface AdminProductsFilter {
   isActive?: boolean;
-  printroveSyncStatus?: string;
-  categoryId?: string;
+  categorySlug?: string;
   search?: string;
   page?: number;
   pageSize?: number;
@@ -59,18 +57,6 @@ export const adminApi = {
       trackingInfo?: { courier: string; awb: string; trackingUrl?: string };
     },
   ) => api<AdminOrder>(`/admin/orders/${id}/status`, { method: 'PUT', body }),
-
-  retryPrintrove: (id: string) =>
-    api<{ printroveOrderId: string; status: string }>(
-      `/admin/orders/${id}/retry-printrove`,
-      { method: 'POST' },
-    ),
-
-  syncPrintrove: (id: string) =>
-    api<{ before: string; after: string; changed: boolean }>(
-      `/admin/orders/${id}/sync-printrove`,
-      { method: 'POST' },
-    ),
 
   markManualReview: (id: string, note?: string) =>
     api<{ ok: true }>(`/admin/orders/${id}/mark-manual-review`, {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -17,7 +17,8 @@ import { StockStatus } from './StockStatus';
 import { SizeGuide } from './SizeGuide';
 import { ProductDetailsAccordion } from './ProductDetailsAccordion';
 
-import { buildVariantMatrix, type ProductDetail } from '@/types/product';
+import { buildVariantMatrixForPdp, type ProductDetail } from '@/types/product';
+import { productImagesForColor } from '@/lib/product-images';
 
 export interface ProductDetailClientProps {
   product: ProductDetail;
@@ -34,17 +35,33 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
   const { add } = useCart();
   const reduce = useReducedMotion();
 
-  const matrix = useMemo(() => buildVariantMatrix(product.variants), [product.variants]);
+  const matrix = useMemo(
+    () => buildVariantMatrixForPdp(product.variants, product.images),
+    [product.variants, product.images],
+  );
 
-  const [selectedSize, setSelectedSize] = useState<string | null>(
-    matrix.sizes.length === 1 ? matrix.sizes[0]! : null,
-  );
-  const [selectedColor, setSelectedColor] = useState<string | null>(
-    matrix.colors.length === 1 ? matrix.colors[0]!.name : null,
-  );
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    const m = buildVariantMatrixForPdp(product.variants, product.images);
+    if (m.sizes.length === 1) setSelectedSize(m.sizes[0]!);
+    else setSelectedSize(null);
+    const d = product.defaultColor?.trim();
+    if (d && m.colors.some((c) => c.name === d)) setSelectedColor(d);
+    else if (m.colors.length === 1) setSelectedColor(m.colors[0]!.name);
+    else setSelectedColor(null);
+  }, [product.id, product.variants, product.images, product.defaultColor]);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
-  const [wishlisted, setWishlisted] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
+
+  const galleryColor = selectedColor ?? matrix.colors[0]?.name ?? null;
+  const displayImages = useMemo(
+    () => productImagesForColor(product.images, galleryColor),
+    [product.images, galleryColor],
+  );
+  const previewForVariant = (color: string) =>
+    productImagesForColor(product.images, color)[0]?.url ?? product.images[0]?.url ?? null;
 
   const variant = resolveVariant(matrix, selectedSize, selectedColor);
   const effectivePrice = variant?.price && variant.price > 0 ? variant.price : product.basePrice;
@@ -82,7 +99,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
       productTitle: product.title,
       productSlug: product.slug,
       variantLabel: `${variant.size} / ${variant.color}`,
-      imageUrl: product.images[0]?.url ?? null,
+      imageUrl: previewForVariant(variant.color),
       unitPricePaise: effectivePrice,
       quantity: 1,
     });
@@ -100,7 +117,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
         productTitle: product.title,
         productSlug: product.slug,
         variantLabel: `${variant.size} / ${variant.color}`,
-        imageUrl: product.images[0]?.url ?? null,
+        imageUrl: previewForVariant(variant.color),
         unitPricePaise: effectivePrice,
         quantity: 1,
       },
@@ -109,26 +126,14 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
     router.push('/checkout');
   }
 
-  function onToggleWishlist() {
-    setWishlisted((w) => !w);
-    dispatch(
-      pushToast({
-        kind: 'info',
-        message: wishlisted ? 'Removed from wishlist' : 'Added to wishlist',
-        duration: 2000,
-      }),
-    );
-    // TODO: wire to POST /wishlist / DELETE /wishlist/:productId via React Query
-  }
-
-  const deliveryEstimate = formatDeliveryWindow(3, 6);
+  const deliveryEstimate = formatDeliveryAboutOneWeek();
 
   return (
     <>
       <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
         {/* Gallery */}
-        <div>
-          <ProductGallery images={product.images} title={product.title} />
+        <div key={galleryColor ?? 'default'}>
+          <ProductGallery images={displayImages} title={product.title} />
         </div>
 
         {/* Info column */}
@@ -150,14 +155,6 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
             <h1 className="font-display text-4xl tracking-tight text-fg-primary md:text-5xl">
               {product.title}
             </h1>
-            {product.avgRating !== null && product.reviewCount > 0 && (
-              <div className="flex items-center gap-2 text-sm text-fg-secondary">
-                <Stars rating={product.avgRating} />
-                <span>
-                  {product.avgRating.toFixed(1)} · {product.reviewCount} reviews
-                </span>
-              </div>
-            )}
           </header>
 
           <div className="flex items-baseline gap-3">
@@ -177,7 +174,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
               </>
             )}
           </div>
-          <p className="-mt-4 text-xs text-fg-muted">Inclusive of all taxes. Free shipping over ₹999.</p>
+          <p className="-mt-4 text-xs text-fg-muted">Prices include applicable taxes. ₹50 delivery per order.</p>
 
           <VariantPicker
             matrix={matrix}
@@ -226,20 +223,6 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
             >
               <FlashIcon className="h-5 w-5" />
               Buy now
-            </button>
-            <button
-              type="button"
-              onClick={onToggleWishlist}
-              aria-pressed={wishlisted}
-              aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-              className={cn(
-                'flex h-12 w-12 items-center justify-center rounded-lg border transition-all',
-                wishlisted
-                  ? 'border-accent bg-accent/10 text-accent'
-                  : 'border-bg-border bg-bg-elevated text-fg-secondary hover:border-fg-muted hover:text-fg-primary',
-              )}
-            >
-              <HeartIcon filled={wishlisted} className="h-5 w-5" />
             </button>
           </div>
 
@@ -311,8 +294,8 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
                 title: 'Delivery & Returns',
                 content: (
                   <div className="space-y-2">
-                    <p>Shipped within 2 business days. Delivery {deliveryEstimate} to most pincodes.</p>
-                    <p>COD available on orders under ₹5,000. Free shipping over ₹999.</p>
+                    <p>Shipped within 2 business days. Delivery in about one week—typically {deliveryEstimate} to most pincodes.</p>
+                    <p>Prepaid orders only. ₹50 delivery on all orders.</p>
                     <p>Returns/exchanges on defective items only — raise within 7 days of delivery.</p>
                   </div>
                 ),
@@ -327,41 +310,16 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
   );
 }
 
-function formatDeliveryWindow(minDays: number, maxDays: number): string {
+/** ~1 week from today (used for display only). */
+function formatDeliveryAboutOneWeek(): string {
   const fmt = (d: Date) =>
     d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
   const now = new Date();
   const from = new Date(now);
-  from.setDate(from.getDate() + minDays);
+  from.setDate(from.getDate() + 5);
   const to = new Date(now);
-  to.setDate(to.getDate() + maxDays);
+  to.setDate(to.getDate() + 9);
   return `${fmt(from)} — ${fmt(to)}`;
-}
-
-function Stars({ rating }: { rating: number }) {
-  const full = Math.floor(rating);
-  const hasHalf = rating - full >= 0.5;
-  return (
-    <span className="inline-flex items-center" aria-hidden>
-      {Array.from({ length: 5 }).map((_, i) => {
-        const mode = i < full ? 'full' : i === full && hasHalf ? 'half' : 'empty';
-        return (
-          <svg key={i} viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
-            <defs>
-              <linearGradient id={`halfStar-${i}`}>
-                <stop offset="50%" stopColor="rgb(var(--warn))" />
-                <stop offset="50%" stopColor="rgb(var(--bg-border))" />
-              </linearGradient>
-            </defs>
-            <path
-              fill={mode === 'full' ? 'rgb(var(--warn))' : mode === 'half' ? `url(#halfStar-${i})` : 'rgb(var(--bg-border))'}
-              d="M12 17.3l-6.2 3.7 1.6-7L2 9.3l7-.6L12 2l3 6.7 7 .6-5.4 4.7 1.6 7z"
-            />
-          </svg>
-        );
-      })}
-    </span>
-  );
 }
 
 function BagPlusIcon({ className }: { className?: string }) {
@@ -376,25 +334,6 @@ function FlashIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
       <path d="M13 2L4.09 12.97a.99.99 0 00.76 1.65H11l-1 7 9-11.5a.99.99 0 00-.78-1.62H13l1-6.5z" />
-    </svg>
-  );
-}
-
-function HeartIcon({ filled, className }: { filled: boolean; className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill={filled ? 'currentColor' : 'none'}
-      stroke="currentColor"
-      strokeWidth="1.75"
-      className={className}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 10-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
-      />
     </svg>
   );
 }

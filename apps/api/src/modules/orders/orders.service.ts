@@ -4,6 +4,7 @@ import { logger } from '../../config/logger';
 import { NotFoundError, ConflictError, ValidationError, ForbiddenError } from '../../lib/errors';
 import { generateOrderNumber } from '../../utils/orderNumber';
 import { computeGst, computeShipping } from '../../utils/money';
+import { applyOrderCoupon } from '../../utils/orderCoupon';
 import { refundPayment } from '../../lib/razorpay';
 import type { CreateOrderBody, ListMyOrdersQuery } from './orders.schema';
 
@@ -35,9 +36,6 @@ export async function createOrder(userId: string, input: CreateOrderBody) {
     if (!v.product.isActive || v.product.deletedAt) {
       throw new ValidationError(`Product ${v.product.title} is no longer available`);
     }
-    if (!v.printroveVariantId) {
-      throw new ValidationError(`Variant ${v.sku} has no Printrove mapping`);
-    }
   }
 
   // Build line items with server-side snapshots
@@ -55,33 +53,20 @@ export async function createOrder(userId: string, input: CreateOrderBody) {
 
   const subtotal = itemRows.reduce((s, r) => s + r.lineTotal, 0);
 
-  // Coupon (simplified; full coupon logic lives in its own module)
   let discountAmount = 0;
-  let couponId: string | null = null;
   let couponCodeSnapshot: string | null = null;
+  let freeShipping = false;
   if (input.couponCode) {
-    const coupon = await prisma.coupon.findUnique({ where: { code: input.couponCode } });
-    if (!coupon || coupon.status !== 'ACTIVE') throw new ValidationError('Invalid coupon');
-    if (coupon.endsAt && coupon.endsAt < new Date()) throw new ValidationError('Coupon expired');
-    if (coupon.minOrderAmount && subtotal < coupon.minOrderAmount) {
-      throw new ValidationError('Order total below coupon minimum');
-    }
-    if (coupon.type === 'PERCENTAGE') {
-      discountAmount = Math.min(
-        Math.round((subtotal * coupon.value) / 100),
-        coupon.maxDiscountAmount ?? Number.MAX_SAFE_INTEGER,
-      );
-    } else if (coupon.type === 'FLAT') {
-      discountAmount = Math.min(coupon.value, subtotal);
-    }
-    couponId = coupon.id;
-    couponCodeSnapshot = coupon.code;
+    const applied = applyOrderCoupon(input.couponCode, subtotal);
+    discountAmount = applied.discountAmount;
+    couponCodeSnapshot = applied.couponCode;
+    freeShipping = applied.freeShipping;
   }
 
   const afterDiscount = subtotal - discountAmount;
-  const shippingFee = input.couponCode && afterDiscount === 0 ? 0 : computeShipping(afterDiscount);
-  const maxUnitPrice = Math.max(...itemRows.map((r) => r.unitPrice));
-  const taxAmount = computeGst(afterDiscount, maxUnitPrice);
+  const shippingFee =
+    freeShipping || afterDiscount <= 0 ? 0 : computeShipping(afterDiscount);
+  const taxAmount = computeGst(afterDiscount, 0);
   const total = afterDiscount + shippingFee + taxAmount;
 
   const orderNumber = generateOrderNumber();
@@ -108,7 +93,6 @@ export async function createOrder(userId: string, input: CreateOrderBody) {
         pincode: address.pincode,
         country: address.country,
       },
-      couponId,
       couponCode: couponCodeSnapshot,
       notes: input.notes ?? null,
       items: {
@@ -118,14 +102,10 @@ export async function createOrder(userId: string, input: CreateOrderBody) {
           variantLabel: `${r.variant.size} / ${r.variant.color}`,
           imageUrl: r.variant.product.images[0]?.url ?? null,
           sku: r.variant.sku,
-          printroveSku: r.variant.printroveVariantId,
           quantity: r.quantity,
           unitPrice: r.unitPrice,
           lineTotal: r.lineTotal,
         })),
-      },
-      statusHistory: {
-        create: { status: OrderStatus.PENDING, source: 'SYSTEM' },
       },
     },
     include: { items: true },
@@ -168,8 +148,6 @@ export async function getOne(userId: string, isAdmin: boolean, orderId: string) 
       items: true,
       payment: true,
       shipment: true,
-      statusHistory: { orderBy: { createdAt: 'asc' } },
-      coupon: { select: { code: true, type: true } },
     },
   });
   if (!order) throw new NotFoundError('Order not found');
@@ -190,25 +168,13 @@ export async function cancel(userId: string, orderId: string, reason?: string) {
 
   const needsRefund = order.status === OrderStatus.CONFIRMED && order.payment?.status === 'CAPTURED';
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const u = await tx.order.update({
-      where: { id: orderId },
-      data: {
-        status: needsRefund ? OrderStatus.REFUNDED : OrderStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancelledReason: reason ?? null,
-      },
-    });
-    await tx.orderStatusEvent.create({
-      data: {
-        orderId,
-        status: u.status,
-        source: 'SYSTEM',
-        actorId: userId,
-        meta: reason ? { reason } : undefined,
-      },
-    });
-    return u;
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: needsRefund ? OrderStatus.REFUNDED : OrderStatus.CANCELLED,
+      cancelledAt: new Date(),
+      cancelledReason: reason ?? null,
+    },
   });
 
   // Fire-and-forget refund (in prod: enqueue to worker for reliability)
@@ -306,8 +272,7 @@ export async function receipt(userId: string, orderId: string): Promise<string> 
   <table style="margin-top:1rem">
     <tr><td>Subtotal</td><td class="r">${inr(order.subtotal)}</td></tr>
     ${order.discountAmount ? `<tr><td>Discount${order.couponCode ? ` (${esc(order.couponCode)})` : ''}</td><td class="r">− ${inr(order.discountAmount)}</td></tr>` : ''}
-    <tr><td>Shipping</td><td class="r">${order.shippingFee === 0 ? 'Free' : inr(order.shippingFee)}</td></tr>
-    <tr><td>GST</td><td class="r">${inr(order.taxAmount)}</td></tr>
+    <tr><td>Delivery</td><td class="r">${order.shippingFee === 0 ? '—' : inr(order.shippingFee)}</td></tr>
     <tr class="total"><td>Total</td><td class="r">${inr(order.total)}</td></tr>
   </table>
 

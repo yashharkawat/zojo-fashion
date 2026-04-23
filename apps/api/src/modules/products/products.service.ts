@@ -11,7 +11,7 @@ function buildWhere(q: ListProductsQuery): Prisma.ProductWhereInput {
     deletedAt: null,
   };
 
-  if (q.category) where.category = { slug: q.category };
+  if (q.category) where.categorySlug = q.category;
   if (q.anime) where.animeSeries = q.anime;
 
   if (q.priceMin !== undefined || q.priceMax !== undefined) {
@@ -64,31 +64,65 @@ export async function list(q: ListProductsQuery) {
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
       include: {
-        images: { where: { isPrimary: true }, take: 1 },
+        images: { orderBy: { sortOrder: 'asc' } },
         variants: {
           where: { isActive: true, deletedAt: null },
-          select: { size: true, color: true, colorHex: true },
+          orderBy: [{ size: 'asc' }, { color: 'asc' }],
+          select: { id: true, size: true, color: true, colorHex: true, price: true },
         },
       },
     }),
   ]);
 
-  const data = items.map((p) => ({
-    id: p.id,
-    slug: p.slug,
-    title: p.title,
-    basePrice: p.basePrice,
-    compareAtPrice: p.compareAtPrice,
-    animeSeries: p.animeSeries,
-    gender: p.gender,
-    primaryImage: p.images[0] ? { url: p.images[0].url, alt: p.images[0].alt } : null,
-    avgRating: p.avgRating,
-    reviewCount: p.reviewCount,
-    availableSizes: Array.from(new Set(p.variants.map((v) => v.size))),
-    availableColors: Array.from(
-      new Map(p.variants.map((v) => [v.color, { name: v.color, hex: v.colorHex }])).values(),
-    ),
-  }));
+  const data = items.map((p) => {
+    const firstV = p.variants[0];
+    const displayColor = p.defaultColor?.trim() || firstV?.color;
+    const anyScoped = p.images.some((i) => i.variantColor);
+    const forCard = (() => {
+      if (!anyScoped) {
+        return [...p.images].sort((a, b) => a.sortOrder - b.sortOrder);
+      }
+      const m = p.images
+        .filter(
+          (img) =>
+            img.variantColor == null ||
+            (displayColor != null && img.variantColor === displayColor),
+        )
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      if (m.length) return m;
+      return [...p.images].sort((a, b) => a.sortOrder - b.sortOrder);
+    })();
+    /** Backs (first half) then fronts (second half) per product — for one color, front = higher `sortOrder`. */
+    const p0 =
+      forCard.length === 0
+        ? undefined
+        : forCard.length === 1
+          ? forCard[0]
+          : forCard.reduce((prev, im) => (im.sortOrder > prev.sortOrder ? im : prev), forCard[0]!);
+    const p1 =
+      forCard.length < 2
+        ? forCard[1]
+        : forCard.reduce((prev, im) => (im.sortOrder < prev.sortOrder ? im : prev), forCard[0]!);
+    return {
+      id: p.id,
+      slug: p.slug,
+      title: p.title,
+      basePrice: p.basePrice,
+      compareAtPrice: p.compareAtPrice,
+      animeSeries: p.animeSeries,
+      gender: p.gender,
+      primaryImage: p0 ? { url: p0.url, alt: p0.alt } : null,
+      secondImage: p1 ? { url: p1.url, alt: p1.alt } : null,
+      avgRating: p.avgRating,
+      reviewCount: p.reviewCount,
+      defaultVariantId: firstV?.id ?? null,
+      defaultVariantLabel: firstV ? `${firstV.size} / ${firstV.color}` : null,
+      availableSizes: Array.from(new Set(p.variants.map((v) => v.size))),
+      availableColors: Array.from(
+        new Map(p.variants.map((v) => [v.color, { name: v.color, hex: v.colorHex }])).values(),
+      ),
+    };
+  });
 
   return {
     data,
@@ -109,25 +143,10 @@ export async function getByIdOrSlug(idOrSlug: string) {
   const product = await prisma.product.findUnique({
     where,
     include: {
-      category: { select: { id: true, slug: true, name: true } },
       images: { orderBy: { sortOrder: 'asc' } },
       variants: {
         where: { isActive: true, deletedAt: null },
         orderBy: [{ size: 'asc' }, { color: 'asc' }],
-      },
-      reviews: {
-        where: { isApproved: true, isHidden: false },
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          rating: true,
-          title: true,
-          body: true,
-          createdAt: true,
-          isVerifiedPurchase: true,
-          user: { select: { firstName: true } },
-        },
       },
     },
   });
@@ -149,7 +168,7 @@ export async function create(input: CreateProductBody) {
       title: input.title,
       description: input.description,
       shortDescription: input.shortDescription ?? null,
-      categoryId: input.categoryId,
+      categorySlug: input.categorySlug,
       basePrice: input.basePrice,
       compareAtPrice: input.compareAtPrice ?? null,
       gender: input.gender,
@@ -170,7 +189,6 @@ export async function create(input: CreateProductBody) {
           colorHex: v.colorHex ?? null,
           price: v.price,
           weightGrams: v.weightGrams ?? null,
-          printroveVariantId: v.printroveVariantId,
         })),
       },
       images: {
@@ -206,7 +224,7 @@ export async function update(id: string, input: UpdateProductBody) {
         title: input.title,
         description: input.description,
         shortDescription: input.shortDescription ?? null,
-        categoryId: input.categoryId,
+        categorySlug: input.categorySlug,
         basePrice: input.basePrice,
         compareAtPrice: input.compareAtPrice ?? null,
         gender: input.gender,
@@ -239,7 +257,6 @@ export async function update(id: string, input: UpdateProductBody) {
           colorHex: v.colorHex ?? null,
           price: v.price,
           weightGrams: v.weightGrams ?? null,
-          printroveVariantId: v.printroveVariantId,
         },
         update: {
           size: v.size,
@@ -247,7 +264,6 @@ export async function update(id: string, input: UpdateProductBody) {
           colorHex: v.colorHex ?? null,
           price: v.price,
           weightGrams: v.weightGrams ?? null,
-          printroveVariantId: v.printroveVariantId,
           isActive: true,
           deletedAt: null,
         },

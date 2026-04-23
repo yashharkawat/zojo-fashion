@@ -9,8 +9,6 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
-export type PrintroveSyncStatus = 'NOT_SYNCED' | 'SYNCED' | 'FAILED' | 'MANUAL_REVIEW';
-
 export interface AdminOrderUser {
   id: string;
   email: string;
@@ -26,8 +24,6 @@ export interface AdminOrder {
   status: OrderStatus;
   subtotal: number;
   total: number;
-  printroveSyncStatus: PrintroveSyncStatus;
-  printroveRetryCount: number;
   user: AdminOrderUser;
   items: Array<{ productTitle: string; variantLabel: string; quantity: number }>;
   payment: { status: string; method: string | null; razorpayPaymentId: string | null } | null;
@@ -56,8 +52,7 @@ export interface AdminProduct {
   avgRating: number | null;
   reviewCount: number;
   animeSeries: string | null;
-  printroveSyncStatus: PrintroveSyncStatus;
-  category: { name: string; slug: string } | null;
+  categorySlug: string;
   images: Array<{ url: string; alt: string | null }>;
   createdAt: string;
   _count: { variants: number };

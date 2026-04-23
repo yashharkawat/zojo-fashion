@@ -6,7 +6,6 @@ import Image from 'next/image';
 
 import { useAdminProducts } from '@/features/admin/hooks';
 import { DataTable, type ColumnDef } from '@/components/admin/DataTable';
-import { SyncStatusBadge } from '@/components/admin/StatusBadge';
 import { Input } from '@/components/ui/Input';
 import { inr, formatDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -60,7 +59,7 @@ export default function AdminProductsPage() {
     {
       id: 'category',
       header: 'Category',
-      cell: (p) => <span className="text-sm text-fg-secondary">{p.category?.name ?? '—'}</span>,
+      cell: (p) => <span className="text-sm text-fg-secondary font-mono">{p.categorySlug}</span>,
     },
     {
       id: 'anime',
@@ -91,11 +90,6 @@ export default function AdminProductsPage() {
       header: 'Price',
       align: 'right',
       cell: (p) => <span className="font-mono text-sm">{inr(p.basePrice)}</span>,
-    },
-    {
-      id: 'sync',
-      header: 'Printrove',
-      cell: (p) => <SyncStatusBadge status={p.printroveSyncStatus} />,
     },
     {
       id: 'status',

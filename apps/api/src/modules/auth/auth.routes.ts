@@ -7,6 +7,7 @@ import { authLimiter } from '../../middleware/rateLimit';
 import {
   registerBodySchema,
   loginBodySchema,
+  googleSignInBodySchema,
   otpSendBodySchema,
   otpVerifyBodySchema,
   emailVerifyBodySchema,
@@ -49,6 +50,13 @@ authRouter.post(
   authLimiter,
   validate({ body: loginBodySchema }),
   asyncHandler(controller.loginHandler),
+);
+
+authRouter.post(
+  '/google',
+  authLimiter,
+  validate({ body: googleSignInBodySchema }),
+  asyncHandler(controller.googleSignInHandler),
 );
 
 authRouter.post('/refresh', authLimiter, asyncHandler(controller.refreshHandler));

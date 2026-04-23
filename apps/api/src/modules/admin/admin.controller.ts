@@ -43,18 +43,6 @@ export async function listProductsHandler(
   return paginated(res, data, pagination);
 }
 
-export async function retryPrintroveHandler(req: Request<{ id: string }>, res: Response) {
-  if (!req.auth) throw new UnauthorizedError();
-  const result = await service.retryPrintrove(req.auth.userId, req.params.id);
-  return ok(res, result);
-}
-
-export async function syncPrintroveHandler(req: Request<{ id: string }>, res: Response) {
-  if (!req.auth) throw new UnauthorizedError();
-  const result = await service.syncPrintrove(req.auth.userId, req.params.id);
-  return ok(res, result);
-}
-
 export async function markManualReviewHandler(
   req: Request<{ id: string }, unknown, MarkManualReviewBody>,
   res: Response,

@@ -14,14 +14,13 @@ interface VariantDraft {
   color: string;
   colorHex: string;
   price: number;
-  printroveVariantId: string;
 }
 
 const DEFAULT_VARIANTS: VariantDraft[] = [
-  { sku: '', size: 'S', color: 'Black', colorHex: '#000000', price: 89900, printroveVariantId: '' },
-  { sku: '', size: 'M', color: 'Black', colorHex: '#000000', price: 89900, printroveVariantId: '' },
-  { sku: '', size: 'L', color: 'Black', colorHex: '#000000', price: 89900, printroveVariantId: '' },
-  { sku: '', size: 'XL', color: 'Black', colorHex: '#000000', price: 89900, printroveVariantId: '' },
+  { sku: '', size: 'S', color: 'Black', colorHex: '#000000', price: 89900 },
+  { sku: '', size: 'M', color: 'Black', colorHex: '#000000', price: 89900 },
+  { sku: '', size: 'L', color: 'Black', colorHex: '#000000', price: 89900 },
+  { sku: '', size: 'XL', color: 'Black', colorHex: '#000000', price: 89900 },
 ];
 
 export default function NewProductPage() {
@@ -34,7 +33,7 @@ export default function NewProductPage() {
   const [slug, setSlug] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [categorySlug, setCategorySlug] = useState('oversized');
   const [basePrice, setBasePrice] = useState(89900);
   const [animeSeries, setAnimeSeries] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -51,9 +50,9 @@ export default function NewProductPage() {
     setError(null);
     setSubmitting(true);
 
-    const missing = variants.find((v) => !v.sku || !v.printroveVariantId);
+    const missing = variants.find((v) => !v.sku);
     if (missing) {
-      setError('Every variant needs an SKU and Printrove Variant ID.');
+      setError('Every variant needs a unique SKU.');
       setSubmitting(false);
       return;
     }
@@ -63,7 +62,7 @@ export default function NewProductPage() {
         slug,
         title,
         description,
-        categoryId,
+        categorySlug,
         basePrice,
         gender: 'MEN',
         animeSeries: animeSeries || undefined,
@@ -76,7 +75,6 @@ export default function NewProductPage() {
           color: v.color,
           colorHex: v.colorHex,
           price: v.price,
-          printroveVariantId: v.printroveVariantId,
         })),
         images: [
           {
@@ -115,7 +113,13 @@ export default function NewProductPage() {
             hint="lowercase, alphanumeric, hyphens"
           />
           <div className="grid gap-4 md:grid-cols-2">
-            <Input label="Category ID" required value={categoryId} onChange={(e) => setCategoryId(e.target.value)} />
+            <Input
+              label="Category slug"
+              required
+              value={categorySlug}
+              onChange={(e) => setCategorySlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-'))}
+              hint="e.g. oversized, regular, limited-edition"
+            />
             <Input label="Anime series" value={animeSeries} onChange={(e) => setAnimeSeries(e.target.value)} />
           </div>
           <Input
@@ -170,10 +174,7 @@ export default function NewProductPage() {
 
         <section className="rounded-xl border border-bg-border bg-bg-elevated p-5 space-y-3">
           <h2 className="font-display text-lg tracking-wide text-fg-primary">Variants</h2>
-          <p className="text-xs text-fg-secondary">
-            Every variant needs a unique SKU and a Printrove Variant ID — without the latter,
-            order push fails.
-          </p>
+          <p className="text-xs text-fg-secondary">Each sellable size/color combination needs a unique SKU and price.</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-wider text-fg-secondary">
@@ -183,7 +184,6 @@ export default function NewProductPage() {
                   <th className="px-2 py-2">Hex</th>
                   <th className="px-2 py-2">SKU</th>
                   <th className="px-2 py-2">Price (paise)</th>
-                  <th className="px-2 py-2">Printrove Variant ID</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,13 +226,6 @@ export default function NewProductPage() {
                         className="h-9 w-28 rounded-md border border-bg-border bg-bg-overlay px-2 font-mono text-sm text-fg-primary"
                       />
                     </td>
-                    <td className="px-2 py-2">
-                      <input
-                        value={v.printroveVariantId}
-                        onChange={(e) => updateVariant(i, { printroveVariantId: e.target.value })}
-                        className="h-9 w-48 rounded-md border border-bg-border bg-bg-overlay px-2 font-mono text-sm text-fg-primary"
-                      />
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -243,7 +236,7 @@ export default function NewProductPage() {
             onClick={() =>
               setVariants((prev) => [
                 ...prev,
-                { sku: '', size: 'XXL', color: 'Black', colorHex: '#000000', price: basePrice, printroveVariantId: '' },
+                { sku: '', size: 'XXL', color: 'Black', colorHex: '#000000', price: basePrice },
               ])
             }
             className="rounded-md border border-bg-border bg-bg-overlay px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-fg-primary hover:border-accent hover:text-accent"

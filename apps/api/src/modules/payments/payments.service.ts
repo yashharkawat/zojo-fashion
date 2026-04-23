@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
@@ -9,7 +8,6 @@ import {
   verifyWebhookSignature,
   refundPayment as gatewayRefund,
 } from '../../lib/razorpay';
-import { pushOrder } from '../../lib/printrove';
 import { notifyOrderConfirmed } from '../../lib/notifications';
 import {
   NotFoundError,
@@ -24,10 +22,33 @@ import type {
   CreatePaymentResult,
 } from './payments.schema';
 
-const COD_MAX_PAISE = 500_000; // ₹5000 cap for COD
+type RefundEventRow = {
+  razorpayRefundId: string;
+  amount: number;
+  status: string;
+  at: string;
+};
+
+function readRefundEvents(raw: Prisma.JsonValue | null | undefined): RefundEventRow[] {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((x) => {
+      if (!x || typeof x !== 'object') return null;
+      const o = x as Record<string, unknown>;
+      if (typeof o.razorpayRefundId !== 'string' || typeof o.amount !== 'number') return null;
+      return {
+        razorpayRefundId: o.razorpayRefundId,
+        amount: o.amount,
+        status: typeof o.status === 'string' ? o.status : 'UNKNOWN',
+        at: typeof o.at === 'string' ? o.at : new Date().toISOString(),
+      };
+    })
+    .filter((x): x is RefundEventRow => x != null);
+}
 
 // ============================================================
-// CREATE — entry point supporting both Razorpay and COD flows
+// CREATE — prepaid (Razorpay) only
 // ============================================================
 
 export async function createPayment(
@@ -51,64 +72,7 @@ export async function createPayment(
     throw new ConflictError('Order already paid');
   }
 
-  if (input.method === 'COD') {
-    return createCodPayment(userId, order);
-  }
   return createRazorpayPayment(order);
-}
-
-async function createCodPayment(
-  userId: string,
-  order: Awaited<ReturnType<typeof prisma.order.findUnique>> & { user: { firstName: string | null; email: string; phone: string | null } },
-): Promise<CreatePaymentResult> {
-  if (!order) throw new NotFoundError();
-
-  if (order.total > COD_MAX_PAISE) {
-    throw new ValidationError(`COD not available for orders above ₹${COD_MAX_PAISE / 100}`);
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.payment.upsert({
-      where: { orderId: order.id },
-      create: {
-        orderId: order.id,
-        razorpayOrderId: `COD_${order.orderNumber}`, // sentinel, unique
-        razorpayReceipt: order.orderNumber,
-        amount: order.total,
-        method: PaymentMethod.COD,
-        status: PaymentStatus.CAPTURED,
-        capturedAt: new Date(),
-      },
-      update: {
-        method: PaymentMethod.COD,
-        status: PaymentStatus.CAPTURED,
-        capturedAt: new Date(),
-      },
-    });
-    await tx.order.update({
-      where: { id: order.id },
-      data: { status: OrderStatus.CONFIRMED },
-    });
-    await tx.orderStatusEvent.create({
-      data: {
-        orderId: order.id,
-        status: OrderStatus.CONFIRMED,
-        source: 'COD',
-        actorId: userId,
-      },
-    });
-  });
-
-  // Background Printrove push
-  pushToPrintroveBackground(order.id).catch((err) =>
-    logger.error({ err, orderId: order.id }, 'Printrove push (COD) failed'),
-  );
-
-  return {
-    method: 'COD',
-    orderNumber: order.orderNumber,
-    status: 'CONFIRMED',
-  };
 }
 
 async function createRazorpayPayment(
@@ -207,126 +171,36 @@ export async function verifyPayment(userId: string, input: VerifyPaymentBody) {
       where: { id: payment.orderId },
       data: { status: OrderStatus.CONFIRMED },
     });
-    await tx.orderStatusEvent.create({
-      data: {
-        orderId: payment.orderId,
-        status: OrderStatus.CONFIRMED,
-        source: 'RAZORPAY_VERIFY',
-        meta: { paymentId: input.razorpay_payment_id },
-      },
-    });
     return { orderNumber: o.orderNumber };
   });
 
-  pushToPrintroveBackground(payment.orderId).catch((err) =>
-    logger.error({ err, orderId: payment.orderId }, 'Printrove push failed'),
-  );
+  scheduleOrderConfirmationEmail(payment.orderId);
 
   return { orderNumber, status: OrderStatus.CONFIRMED, alreadyCaptured: false };
 }
 
-// ============================================================
-// PRINTROVE PUSH — background (in MVP runs inline; move to queue later)
-// ============================================================
-
-async function pushToPrintroveBackground(orderId: string): Promise<void> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: {
-      items: true,
-      user: { select: { firstName: true, email: true, phone: true } },
-    },
-  });
-  if (!order || order.printroveOrderId) return;
-
-  const addr = order.shippingAddressSnapshot as {
-    fullName: string; phone: string; line1: string; line2?: string;
-    city: string; state: string; pincode: string; country: string;
-  };
-
-  // Validate every item has a Printrove mapping — fail fast for easy admin triage
-  const unmapped = order.items.filter((i) => !i.printroveSku);
-  if (unmapped.length > 0) {
-    await prisma.order.update({
+/**
+ * Fire-and-forget: email/SMS the customer that payment was received.
+ */
+function scheduleOrderConfirmationEmail(orderId: string): void {
+  void (async () => {
+    const order = await prisma.order.findUnique({
       where: { id: orderId },
-      data: {
-        printroveSyncStatus: 'MANUAL_REVIEW',
-        printroveLastError: `Missing Printrove mapping for ${unmapped.length} item(s)`,
-      },
+      include: { user: { select: { firstName: true, email: true, phone: true } } },
     });
-    logger.error(
-      { orderId, unmappedCount: unmapped.length },
-      'Order has items without Printrove mapping — marked for manual review',
-    );
-    return;
-  }
-
-  try {
-    const isCod = order.status === OrderStatus.CONFIRMED && (await isCodOrder(orderId));
-    const res = await pushOrder({
-      externalOrderId: order.orderNumber,
-      totalRupees: Math.round(order.total / 100), // paise → rupees for Printrove
-      items: order.items.map((i) => ({
-        printroveVariantId: i.printroveSku!,
-        quantity: i.quantity,
-      })),
-      shippingAddress: addr,
-      customer: {
-        name: order.user.firstName ?? addr.fullName,
-        email: order.user.email,
-        phone: order.user.phone ?? addr.phone,
-      },
-      isCod,
-    });
-
-    await prisma.$transaction([
-      prisma.order.update({
-        where: { id: orderId },
-        data: {
-          status: OrderStatus.PRINTING,
-          printroveOrderId: res.printroveOrderId,
-          printroveSyncStatus: 'SYNCED',
-          printroveLastSyncedAt: new Date(),
-          printroveLastError: null,
-        },
-      }),
-      prisma.orderStatusEvent.create({
-        data: {
-          orderId,
-          status: OrderStatus.PRINTING,
-          source: 'PRINTROVE_PUSH',
-          meta: { printroveOrderId: res.printroveOrderId },
-        },
-      }),
-    ]);
-
-    // Fire customer notification — non-blocking
-    notifyOrderConfirmed({
-      orderNumber: order.orderNumber,
-      customerName: order.user.firstName ?? 'there',
-      customerEmail: order.user.email,
-      customerPhone: order.user.phone,
-      totalPaise: order.total,
-    }).catch((err) => logger.error({ err, orderId }, 'notifyOrderConfirmed failed'));
-  } catch (err) {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        printroveSyncStatus: 'FAILED',
-        printroveRetryCount: { increment: 1 },
-        printroveLastError: String(err).slice(0, 500),
-      },
-    });
-    throw err;
-  }
-}
-
-async function isCodOrder(orderId: string): Promise<boolean> {
-  const p = await prisma.payment.findUnique({
-    where: { orderId },
-    select: { method: true },
-  });
-  return p?.method === PaymentMethod.COD;
+    if (!order) return;
+    try {
+      await notifyOrderConfirmed({
+        orderNumber: order.orderNumber,
+        customerName: order.user.firstName ?? 'there',
+        customerEmail: order.user.email,
+        customerPhone: order.user.phone,
+        totalPaise: order.total,
+      });
+    } catch (err) {
+      logger.error({ err, orderId }, 'notifyOrderConfirmationEmail failed');
+    }
+  })();
 }
 
 // ============================================================
@@ -375,28 +249,6 @@ function mapMethod(m?: string): PaymentMethod | null {
   return map[m.toLowerCase()] ?? PaymentMethod.OTHER;
 }
 
-/**
- * Try to record processed event; returns true if this is first-seen, false if duplicate.
- */
-async function claimEvent(eventId: string, eventType: string, rawBody: string): Promise<boolean> {
-  try {
-    await prisma.processedWebhookEvent.create({
-      data: {
-        provider: 'RAZORPAY',
-        eventId,
-        eventType,
-        payloadHash: crypto.createHash('sha256').update(rawBody).digest('hex'),
-      },
-    });
-    return true;
-  } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      return false;
-    }
-    throw err;
-  }
-}
-
 export async function handleRazorpayWebhook(params: {
   rawBody: string;
   signature: string;
@@ -406,14 +258,6 @@ export async function handleRazorpayWebhook(params: {
   if (!valid) throw new ValidationError('Invalid webhook signature');
 
   const event = JSON.parse(params.rawBody) as RazorpayWebhookEvent;
-  const eventId = params.eventId ?? event.id;
-  if (!eventId) throw new ValidationError('Missing event id');
-
-  const firstSeen = await claimEvent(eventId, event.event, params.rawBody);
-  if (!firstSeen) {
-    logger.info({ eventId, type: event.event }, 'Webhook duplicate — skipped');
-    return { applied: false, reason: 'duplicate' };
-  }
 
   switch (event.event) {
     case 'payment.captured':
@@ -463,19 +307,9 @@ async function applyPaymentCaptured(p: RazorpayPaymentEntity): Promise<void> {
       where: { id: payment.orderId },
       data: { status: OrderStatus.CONFIRMED },
     }),
-    prisma.orderStatusEvent.create({
-      data: {
-        orderId: payment.orderId,
-        status: OrderStatus.CONFIRMED,
-        source: 'RAZORPAY_WEBHOOK',
-        meta: { paymentId: p.id },
-      },
-    }),
   ]);
 
-  pushToPrintroveBackground(payment.orderId).catch((err) =>
-    logger.error({ err }, 'Printrove push from webhook failed'),
-  );
+  scheduleOrderConfirmationEmail(payment.orderId);
 }
 
 async function applyPaymentFailed(p: RazorpayPaymentEntity): Promise<void> {
@@ -491,21 +325,54 @@ async function applyPaymentFailed(p: RazorpayPaymentEntity): Promise<void> {
 }
 
 async function applyRefundProcessed(r: RazorpayRefundEntity): Promise<void> {
-  await prisma.refund.updateMany({
-    where: { razorpayRefundId: r.id },
-    data: {
-      status: 'PROCESSED',
-      processedAt: new Date(),
-      rawProviderPayload: r as unknown as Prisma.InputJsonValue,
-    },
+  const payment = await prisma.payment.findFirst({
+    where: { razorpayPaymentId: r.payment_id },
   });
+  if (!payment) {
+    logger.warn({ payment_id: r.payment_id }, 'refund.processed: payment not found');
+    return;
+  }
+  const events = readRefundEvents(payment.refundEvents);
+  if (events.some((e) => e.razorpayRefundId === r.id)) {
+    return;
+  }
+  const newEv: RefundEventRow = {
+    razorpayRefundId: r.id,
+    amount: r.amount,
+    status: r.status,
+    at: new Date().toISOString(),
+  };
+  const next = [...events, newEv];
+  const totalRefunded = payment.amountRefunded + r.amount;
+  const payStatus: PaymentStatus =
+    totalRefunded >= payment.amount ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED;
+  await prisma.$transaction([
+    prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        amountRefunded: totalRefunded,
+        lastRazorpayRefundId: r.id,
+        refundEvents: next as unknown as Prisma.InputJsonValue,
+        status: payStatus,
+        rawWebhookPayload: r as unknown as Prisma.InputJsonValue,
+      },
+    }),
+    ...(payStatus === PaymentStatus.REFUNDED
+      ? [
+          prisma.order.update({
+            where: { id: payment.orderId },
+            data: { status: OrderStatus.REFUNDED },
+          }),
+        ]
+      : []),
+  ]);
 }
 
 // ============================================================
 // REFUND — admin-initiated
 // ============================================================
 
-export async function refund(adminUserId: string, input: RefundPaymentBody) {
+export async function refund(_adminUserId: string, input: RefundPaymentBody) {
   const order = await prisma.order.findUnique({
     where: { id: input.orderId },
     include: { payment: true },
@@ -538,50 +405,29 @@ export async function refund(adminUserId: string, input: RefundPaymentBody) {
   });
 
   return prisma.$transaction(async (tx) => {
-    const refundRow = await tx.refund.create({
-      data: {
-        orderId: order.id,
-        paymentId: order.payment!.id,
-        razorpayRefundId: rz.id,
-        amount,
-        status: rz.status === 'processed' ? 'PROCESSED' : 'PENDING',
-        reason: input.reason ?? null,
-        initiatedByAdminId: adminUserId,
-        processedAt: rz.status === 'processed' ? new Date() : null,
-      },
-    });
+    const pay = order.payment!;
+    const ev: RefundEventRow = {
+      razorpayRefundId: rz.id,
+      amount,
+      status: rz.status ?? 'created',
+      at: new Date().toISOString(),
+    };
+    const nextEvents = [...readRefundEvents(pay.refundEvents), ev];
 
     await tx.payment.update({
-      where: { id: order.payment!.id },
+      where: { id: pay.id },
       data: {
         amountRefunded: { increment: amount },
+        lastRazorpayRefundId: rz.id,
+        refundEvents: nextEvents as unknown as Prisma.InputJsonValue,
         status: isFull ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED,
       },
     });
 
     if (isFull) {
       await tx.order.update({ where: { id: order.id }, data: { status: OrderStatus.REFUNDED } });
-      await tx.orderStatusEvent.create({
-        data: {
-          orderId: order.id,
-          status: OrderStatus.REFUNDED,
-          source: 'ADMIN',
-          actorId: adminUserId,
-          meta: { refundId: rz.id, amount },
-        },
-      });
     }
 
-    await tx.auditLog.create({
-      data: {
-        userId: adminUserId,
-        action: isFull ? 'ORDER_REFUND_FULL' : 'ORDER_REFUND_PARTIAL',
-        entity: 'Order',
-        entityId: order.id,
-        diff: { amount, razorpayRefundId: rz.id, reason: input.reason },
-      },
-    });
-
-    return refundRow;
+    return { orderId: order.id, paymentId: pay.id, razorpayRefundId: rz.id, amount, isFull };
   });
 }

@@ -27,12 +27,10 @@ const envSchema = z.object({
   RAZORPAY_KEY_SECRET: z.string().min(1),
   RAZORPAY_WEBHOOK_SECRET: z.string().min(1),
 
-  PRINTROVE_API_URL: z.string().url(),
-  PRINTROVE_EMAIL: z.string().min(1),
-  PRINTROVE_PASSWORD: z.string().min(1),
-  PRINTROVE_WEBHOOK_SECRET: z.string().default(''),
-
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
+
+  /** Web OAuth client ID (same as NEXT_PUBLIC_GOOGLE_CLIENT_ID) — used to verify ID tokens */
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

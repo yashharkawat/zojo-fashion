@@ -8,6 +8,7 @@ export interface CartSummaryProps {
 }
 
 export function CartSummary({ pricing, couponCode, className }: CartSummaryProps) {
+  const afterDiscount = pricing.subtotalPaise - pricing.discountPaise;
   return (
     <dl className={`space-y-2 text-sm ${className ?? ''}`}>
       <Row label="Subtotal" value={inr(pricing.subtotalPaise)} />
@@ -19,13 +20,18 @@ export function CartSummary({ pricing, couponCode, className }: CartSummaryProps
         />
       )}
       <Row
-        label="Shipping"
-        value={pricing.shippingPaise === 0 ? 'Free' : inr(pricing.shippingPaise)}
+        label="Delivery"
+        value={
+          pricing.shippingPaise === 0
+            ? afterDiscount <= 0
+              ? '—'
+              : 'Free'
+            : inr(pricing.shippingPaise)
+        }
       />
-      <Row label="GST" value={inr(pricing.taxPaise)} />
       <div className="my-3 border-t border-bg-border" />
       <Row label="Total" value={inr(pricing.totalPaise)} large />
-      <p className="pt-1 text-xs text-fg-muted">Inclusive of all taxes.</p>
+      <p className="pt-1 text-xs text-fg-muted">₹50 delivery on all orders. Prices include applicable taxes.</p>
     </dl>
   );
 }

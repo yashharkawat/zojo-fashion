@@ -1,10 +1,8 @@
-import { OrderStatus, ShipmentStatus, type Prisma } from '@prisma/client';
+import { OrderStatus, PaymentStatus, ShipmentStatus, type Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { logger } from '../../config/logger';
 import { refundPayment } from '../../lib/razorpay';
-import { pushOrder } from '../../lib/printrove';
-import { reconcileOrder } from '../printrove/printrove.webhook.service';
-import { ConflictError, NotFoundError, ValidationError } from '../../lib/errors';
+import { ConflictError, NotFoundError } from '../../lib/errors';
 import type {
   AdminListOrdersQuery,
   AdminUpdateOrderStatusBody,
@@ -62,7 +60,7 @@ export async function listOrders(q: AdminListOrdersQuery) {
 }
 
 export async function updateOrderStatus(
-  adminUserId: string,
+  _adminUserId: string,
   orderId: string,
   input: AdminUpdateOrderStatusBody,
 ) {
@@ -84,16 +82,6 @@ export async function updateOrderStatus(
         status: input.status,
         cancelledAt: input.status === OrderStatus.CANCELLED ? new Date() : order.cancelledAt,
         cancelledReason: input.status === OrderStatus.CANCELLED ? input.reason ?? null : order.cancelledReason,
-      },
-    });
-
-    await tx.orderStatusEvent.create({
-      data: {
-        orderId,
-        status: input.status,
-        source: 'ADMIN',
-        actorId: adminUserId,
-        meta: input.reason ? { reason: input.reason } : undefined,
       },
     });
 
@@ -126,17 +114,6 @@ export async function updateOrderStatus(
       });
     }
 
-    // Audit
-    await tx.auditLog.create({
-      data: {
-        userId: adminUserId,
-        action: `ORDER_STATUS_${input.status}`,
-        entity: 'Order',
-        entityId: orderId,
-        diff: { from: order.status, to: input.status },
-      },
-    });
-
     return updated;
   });
 
@@ -148,15 +125,22 @@ export async function updateOrderStatus(
       notes: { orderNumber: order.orderNumber, reason: input.reason ?? 'admin_refund' },
     })
       .then(async (r) => {
-        await prisma.refund.create({
+        const pay = order.payment!;
+        const raw = pay.refundEvents;
+        const prev = Array.isArray(raw) ? raw : [];
+        const ev = {
+          razorpayRefundId: r.id,
+          amount: order.total,
+          status: 'processed',
+          at: new Date().toISOString(),
+        };
+        await prisma.payment.update({
+          where: { id: pay.id },
           data: {
-            orderId,
-            paymentId: order.payment!.id,
-            razorpayRefundId: r.id,
-            amount: order.total,
-            status: 'PROCESSED',
-            reason: input.reason ?? null,
-            initiatedByAdminId: adminUserId,
+            amountRefunded: { increment: order.total },
+            lastRazorpayRefundId: r.id,
+            refundEvents: [...prev, ev] as unknown as Prisma.InputJsonValue,
+            status: PaymentStatus.REFUNDED,
           },
         });
       })
@@ -191,9 +175,12 @@ export async function analytics(q: AdminAnalyticsQuery) {
     prisma.order.count({ where: { ...where, status: OrderStatus.CANCELLED } }),
     prisma.order.count({ where: { ...where, status: OrderStatus.REFUNDED } }),
     prisma.order.aggregate({ where: paidWhere, _sum: { total: true } }),
-    prisma.refund.aggregate({
-      where: { createdAt: { gte: from, lte: to }, status: 'PROCESSED' },
-      _sum: { amount: true },
+    prisma.payment.aggregate({
+      where: {
+        amountRefunded: { gt: 0 },
+        order: { placedAt: { gte: from, lte: to } },
+      },
+      _sum: { amountRefunded: true },
     }),
     prisma.orderItem.groupBy({
       by: ['productTitle'],
@@ -218,7 +205,7 @@ export async function analytics(q: AdminAnalyticsQuery) {
   ]);
 
   const gross = grossAgg._sum.total ?? 0;
-  const refunds = refundsAgg._sum.amount ?? 0;
+  const refunds = refundsAgg._sum.amountRefunded ?? 0;
 
   return {
     range: { from, to },
@@ -243,147 +230,25 @@ export async function analytics(q: AdminAnalyticsQuery) {
   };
 }
 
-// ============================================================
-// PRINTROVE RECOVERY — admin-triggered retry / reconcile / flag
-// ============================================================
-
-export async function retryPrintrove(adminUserId: string, orderId: string) {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: {
-      items: true,
-      user: { select: { firstName: true, email: true, phone: true } },
-    },
-  });
-  if (!order) throw new NotFoundError('Order not found');
-  if (order.printroveOrderId) {
-    throw new ConflictError('Order already pushed to Printrove — use sync instead');
-  }
-  if (order.status !== OrderStatus.CONFIRMED && order.status !== OrderStatus.PENDING) {
-    throw new ConflictError(`Cannot retry from status ${order.status}`);
-  }
-
-  const unmapped = order.items.filter((i) => !i.printroveSku);
-  if (unmapped.length > 0) {
-    throw new ValidationError(
-      `${unmapped.length} item(s) missing Printrove mapping. Fix catalog then retry.`,
-    );
-  }
-
-  const addr = order.shippingAddressSnapshot as {
-    fullName: string; phone: string; line1: string; line2?: string;
-    city: string; state: string; pincode: string; country: string;
-  };
-
-  try {
-    const res = await pushOrder({
-      externalOrderId: order.orderNumber,
-      totalRupees: Math.round(order.total / 100),
-      items: order.items.map((i) => ({
-        printroveVariantId: i.printroveSku!,
-        quantity: i.quantity,
-      })),
-      shippingAddress: addr,
-      customer: {
-        name: order.user.firstName ?? addr.fullName,
-        email: order.user.email,
-        phone: order.user.phone ?? addr.phone,
-      },
-    });
-
-    await prisma.$transaction([
-      prisma.order.update({
-        where: { id: order.id },
-        data: {
-          status: OrderStatus.PRINTING,
-          printroveOrderId: res.printroveOrderId,
-          printroveSyncStatus: 'SYNCED',
-          printroveLastSyncedAt: new Date(),
-          printroveLastError: null,
-        },
-      }),
-      prisma.orderStatusEvent.create({
-        data: {
-          orderId: order.id,
-          status: OrderStatus.PRINTING,
-          source: 'ADMIN_RETRY',
-          actorId: adminUserId,
-          meta: { printroveOrderId: res.printroveOrderId },
-        },
-      }),
-      prisma.auditLog.create({
-        data: {
-          userId: adminUserId,
-          action: 'PRINTROVE_RETRY',
-          entity: 'Order',
-          entityId: order.id,
-          diff: { printroveOrderId: res.printroveOrderId },
-        },
-      }),
-    ]);
-
-    return { printroveOrderId: res.printroveOrderId, status: OrderStatus.PRINTING };
-  } catch (err) {
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        printroveSyncStatus: 'FAILED',
-        printroveRetryCount: { increment: 1 },
-        printroveLastError: String(err).slice(0, 500),
-      },
-    });
-    logger.error({ err, orderId }, 'Admin retry of Printrove push failed');
-    throw err;
-  }
-}
-
-export async function syncPrintrove(adminUserId: string, orderId: string) {
-  const result = await reconcileOrder(orderId);
-  await prisma.auditLog.create({
-    data: {
-      userId: adminUserId,
-      action: 'PRINTROVE_SYNC',
-      entity: 'Order',
-      entityId: orderId,
-      diff: result as unknown as Prisma.InputJsonValue,
-    },
-  });
-  return result;
-}
-
-export async function markManualReview(adminUserId: string, orderId: string, note?: string) {
+export async function markManualReview(_adminUserId: string, orderId: string, note?: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new NotFoundError('Order not found');
 
-  await prisma.$transaction([
-    prisma.order.update({
-      where: { id: orderId },
-      data: {
-        printroveSyncStatus: 'MANUAL_REVIEW',
-        printroveLastError: note ? `[admin] ${note}` : order.printroveLastError,
-        internalNotes: note
-          ? `${order.internalNotes ?? ''}\n[${new Date().toISOString()}] ${note}`.trim()
-          : order.internalNotes,
-      },
-    }),
-    prisma.auditLog.create({
-      data: {
-        userId: adminUserId,
-        action: 'ORDER_MANUAL_REVIEW',
-        entity: 'Order',
-        entityId: orderId,
-        diff: { note: note ?? null },
-      },
-    }),
-  ]);
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      internalNotes: note
+        ? `${order.internalNotes ?? ''}\n[${new Date().toISOString()}] ${note}`.trim()
+        : order.internalNotes,
+    },
+  });
   return { ok: true };
 }
 
 export async function listProducts(q: AdminListProductsQuery) {
   const where: Prisma.ProductWhereInput = {};
   if (q.isActive !== undefined) where.isActive = q.isActive;
-  if (q.printroveSyncStatus) where.printroveSyncStatus = q.printroveSyncStatus;
-  if (q.categoryId) where.categoryId = q.categoryId;
+  if (q.categorySlug) where.categorySlug = q.categorySlug;
   if (q.search) {
     where.OR = [
       { title: { contains: q.search, mode: 'insensitive' } },
@@ -399,7 +264,6 @@ export async function listProducts(q: AdminListProductsQuery) {
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
       include: {
-        category: { select: { name: true, slug: true } },
         images: { where: { isPrimary: true }, take: 1 },
         _count: { select: { variants: true } },
       },

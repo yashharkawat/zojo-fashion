@@ -30,8 +30,7 @@ export const metadata: Metadata = {
     default: 'ZOJO — Wear The Bold',
     template: '%s | ZOJO',
   },
-  description:
-    'Anime-inspired premium streetwear. Oversized, regular, and limited drops for the otakus of India.',
+  description: 'Anime-inspired premium streetwear. Printed in India for the otakus who wear their fandom with a straight face.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
   openGraph: {
     type: 'website',
@@ -50,16 +49,21 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${bebas.variable} ${dmSans.variable}`}>
-      <body className="min-h-screen bg-bg-base font-sans text-fg-primary antialiased">
+      <body
+        className="min-h-screen bg-bg-base font-sans text-fg-primary antialiased"
+        style={{ backgroundColor: '#0A0A0A', color: '#F5F5F5' }}
+      >
         <Providers>
           <Header />
           <SecondaryNav />
           <main>{children}</main>
-          <Footer />
           <CartDrawer />
           <GlobalLoginModal />
           <Toaster />
         </Providers>
+        {/* Server-only footer: must NOT sit inside `Providers` (client tree) or async RSC
+            composition can break styling/hydration on some pages (e.g. /login). */}
+        <Footer />
       </body>
     </html>
   );

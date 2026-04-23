@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidIndiaMobileE164, toIndiaE164 } from '@/lib/phone';
 
 export const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -25,7 +26,9 @@ export const addressSchema = z.object({
   phone: z
     .string()
     .trim()
-    .regex(/^\+91[6-9]\d{9}$/, 'Must be +91 followed by a 10-digit number'),
+    .min(1, 'Phone is required')
+    .transform((s) => toIndiaE164(s))
+    .refine((s) => isValidIndiaMobileE164(s), { message: 'Enter a valid 10-digit mobile (starts with 6–9)' }),
   email: z.string().trim().email('Enter a valid email'),
   line1: z.string().trim().min(4, 'Address line 1 is required').max(120),
   line2: z.string().trim().max(120).optional().or(z.literal('')),

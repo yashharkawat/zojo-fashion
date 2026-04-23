@@ -48,6 +48,12 @@ export const passwordResetConfirmBodySchema = z.object({
   newPassword: z.string().min(8).max(100),
 });
 
+export const googleSignInBodySchema = z.object({
+  idToken: z.string().min(1, 'idToken is required'),
+  /** Applied only when a new account is created */
+  marketingOptIn: z.boolean().optional(),
+});
+
 // ─── Types ────────────────────────────────────────────────
 
 export type RegisterBody = z.infer<typeof registerBodySchema>;
@@ -57,3 +63,4 @@ export type OtpVerifyBody = z.infer<typeof otpVerifyBodySchema>;
 export type EmailVerifyBody = z.infer<typeof emailVerifyBodySchema>;
 export type PasswordResetRequestBody = z.infer<typeof passwordResetRequestBodySchema>;
 export type PasswordResetConfirmBody = z.infer<typeof passwordResetConfirmBodySchema>;
+export type GoogleSignInBody = z.infer<typeof googleSignInBodySchema>;

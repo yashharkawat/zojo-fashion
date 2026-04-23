@@ -45,7 +45,7 @@ src/
 ├── config/             # env, prisma, logger
 ├── types/              # ApiResponse, AuthContext, express module aug
 ├── middleware/         # requestId, auth, rbac, validate, rateLimit, errorHandler
-├── lib/                # errors, response, asyncHandler, jwt, password, razorpay, printrove
+├── lib/                # errors, response, asyncHandler, jwt, password, razorpay, notifications
 ├── utils/              # orderNumber, money (paise helpers, GST, shipping)
 └── modules/
     ├── auth/           # register, login, refresh (rotation), logout, me
@@ -107,8 +107,7 @@ GET    /api/v1/admin/products
 - **Errors**: `AppError` hierarchy → `errorHandler` → JSON body. Prisma `P2002`/`P2025` auto-mapped.
 - **Auth**: Access JWT (15m, HS256) in `Authorization: Bearer`; refresh opaque token SHA-256-hashed in DB, delivered as `httpOnly` cookie scoped to `/api/v1/auth`. Rotation + reuse-detection.
 - **Passwords**: argon2id (19 MiB, t=2).
-- **Razorpay**: `orders.create` → client Checkout.js → `/verify` with HMAC-SHA256 signature (timing-safe). **Webhook is source of truth** — idempotent by event id (add `processed_events` table for prod).
-- **Printrove**: `pushOrder()` with 3× exponential backoff. On failure, `printroveSyncStatus=FAILED` + retry counter; admin can re-push.
+- **Razorpay**: `orders.create` → client Checkout.js → `/verify` with HMAC-SHA256 signature (timing-safe). **Webhook is source of truth** — idempotent by event id.
 - **Money**: all paise (Int). GST 5%/12% based on unit price.
 - **Validation**: Zod schemas at every route. Inferred types shared with controllers.
 - **Security**: helmet, CORS allowlist, 1 MB body cap, rate limits per route, pino redaction for auth/signature fields.
@@ -117,10 +116,9 @@ GET    /api/v1/admin/products
 
 - [ ] Seed script (admin user, sample products, collection, banner)
 - [ ] `processed_webhook_events` table for webhook idempotency
-- [ ] BullMQ worker for Printrove push + email
+- [ ] BullMQ worker for async emails / jobs
 - [ ] Address CRUD endpoints (schema + routes)
 - [ ] Categories CRUD (admin)
-- [ ] Printrove webhook handler (status → SHIPPED/DELIVERED)
 - [ ] Coupon module (apply/validate endpoint)
 - [ ] Review module (create, list, moderate)
 - [ ] Unit + integration tests (Vitest + Supertest)

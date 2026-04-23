@@ -1,5 +1,5 @@
 import { cn } from '@/lib/cn';
-import type { OrderStatus, PrintroveSyncStatus } from '@/features/admin/types';
+import type { OrderStatus } from '@/features/admin/types';
 
 const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
   PENDING:   'bg-fg-muted/15 text-fg-secondary border-fg-muted/30',
@@ -11,23 +11,8 @@ const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
   REFUNDED:  'bg-pink/15 text-pink border-pink/30',
 };
 
-const SYNC_STATUS_STYLES: Record<PrintroveSyncStatus, string> = {
-  NOT_SYNCED:    'bg-fg-muted/15 text-fg-secondary border-fg-muted/30',
-  SYNCED:        'bg-success/15 text-success border-success/30',
-  FAILED:        'bg-danger/15 text-danger border-danger/30',
-  MANUAL_REVIEW: 'bg-warn/15 text-warn border-warn/30',
-};
-
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return <Pill className={ORDER_STATUS_STYLES[status]}>{status}</Pill>;
-}
-
-export function SyncStatusBadge({ status }: { status: PrintroveSyncStatus }) {
-  return (
-    <Pill className={SYNC_STATUS_STYLES[status]}>
-      {status.replace('_', ' ')}
-    </Pill>
-  );
 }
 
 function Pill({ className, children }: { className: string; children: React.ReactNode }) {

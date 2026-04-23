@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAdminOrders } from '@/features/admin/hooks';
 import type { AdminOrder, OrderStatus } from '@/features/admin/types';
 import { DataTable, type ColumnDef } from '@/components/admin/DataTable';
-import { OrderStatusBadge, SyncStatusBadge } from '@/components/admin/StatusBadge';
+import { OrderStatusBadge } from '@/components/admin/StatusBadge';
 import { inr, formatDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -70,11 +70,6 @@ export default function AdminOrdersPage() {
       id: 'status',
       header: 'Status',
       cell: (r) => <OrderStatusBadge status={r.status} />,
-    },
-    {
-      id: 'sync',
-      header: 'Printrove',
-      cell: (r) => <SyncStatusBadge status={r.printroveSyncStatus} />,
     },
     {
       id: 'payment',

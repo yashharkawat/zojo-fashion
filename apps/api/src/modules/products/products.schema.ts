@@ -30,7 +30,6 @@ export const variantInputSchema = z.object({
   colorHex: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   price: z.number().int().positive(),
   weightGrams: z.number().int().positive().optional(),
-  printroveVariantId: z.string().min(1),
 });
 
 export const imageInputSchema = z.object({
@@ -48,7 +47,11 @@ export const createProductBodySchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1),
   shortDescription: z.string().max(300).optional(),
-  categoryId: z.string().min(1),
+  categorySlug: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, 'lowercase alphanumeric with hyphens')
+    .min(1)
+    .max(64),
   basePrice: z.number().int().positive(),
   compareAtPrice: z.number().int().positive().optional(),
   gender: z.enum(['MEN', 'WOMEN', 'UNISEX']).default('MEN'),

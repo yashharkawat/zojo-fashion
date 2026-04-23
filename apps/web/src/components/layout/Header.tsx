@@ -14,7 +14,7 @@ export function Header() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const cartCount = useAppSelector(selectCartCount);
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, status: authStatus } = useAuth();
   const mounted = useHasMounted(); // gate hydration-unsafe renders (cart count, auth state)
   const [query, setQuery] = useState('');
 
@@ -70,9 +70,13 @@ export function Header() {
             <SearchIcon className="h-5 w-5" />
           </button>
 
-          {/* Account — visible on ALL breakpoints now.
-              Render real state only after mount to avoid hydration mismatch. */}
-          {mounted && isAuthenticated ? (
+          {/* Real auth only after mount; never show Login while session is being restored. */}
+          {!mounted || authStatus === 'idle' || authStatus === 'authenticating' ? (
+            <span
+              className="inline-block h-9 w-[5.5rem] rounded-lg bg-bg-elevated/60 md:w-28"
+              aria-hidden
+            />
+          ) : isAuthenticated ? (
             <Link
               href="/profile"
               className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary md:px-3"

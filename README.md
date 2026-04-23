@@ -1,28 +1,82 @@
 # Zojo Fashion
 
-Anime/otaku-themed premium men's clothing brand — India-first, print-on-demand via Printrove.
+Anime/otaku-themed premium men's clothing brand — India-first e-commerce.
 
 ## Documentation
 - **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** — product scope, architecture, ADRs, 1-week delivery plan
 - **[API_DESIGN.md](./API_DESIGN.md)** — complete REST API specification
 - **[RAZORPAY_INTEGRATION.md](./RAZORPAY_INTEGRATION.md)** — Razorpay + COD flow, webhooks, refunds, receipts
-- **[PRINTROVE_INTEGRATION.md](./PRINTROVE_INTEGRATION.md)** — POD fulfillment, status mapping, webhook, notifications
 - **[FRONTEND_DESIGN.md](./FRONTEND_DESIGN.md)** — Next.js architecture, state split, components, design tokens
 - **[AUTH_SYSTEM.md](./AUTH_SYSTEM.md)** — email/password + phone OTP, JWT + refresh rotation, security
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** — Vercel + Render + Neon, CI/CD, monitoring, deploy checklist
 - **[apps/api/README.md](./apps/api/README.md)** — backend quick-start + endpoint cheat sheet
 
-## Quick start
+## How to start locally
+
+**Prerequisites:** [Node.js 22+](https://nodejs.org/) and npm, [Docker](https://www.docker.com/) (only if you use the bundled Postgres; skip if you point the API at a cloud DB such as Neon).
+
+### 1. Environment files
+
+- **API** — from the repo root:
+  ```bash
+  cp apps/api/.env.example apps/api/.env
+  ```
+  Edit `apps/api/.env` and set at least `DATABASE_URL` (and `DIRECT_URL` if your Prisma flow uses it). You can use **either** a hosted PostgreSQL URL **or** local Docker Postgres (see step 2).
+- **Web** — required; the app will not start without `NEXT_PUBLIC_API_BASE_URL`:
+  ```bash
+  cp apps/web/.env.example apps/web/.env
+  ```
+  Defaults in `.env.example` target `http://localhost:4000/api/v1` and `http://localhost:3000`; adjust if your ports differ.
+
+### 2. Database (choose one)
+
+- **Docker (local Postgres 16):** from the repo root, `docker compose up -d`, then put the matching `DATABASE_URL` in `apps/api/.env` (user/password/db from [`docker-compose.yml`](./docker-compose.yml)).
+- **Remote Postgres:** put your connection string in `apps/api/.env` and skip Docker.
+
+### 3. One-shot install (recommended)
+
+From the repo root. Uses Docker for Postgres, installs both apps, runs Prisma generate and migrations, and creates `.env` from examples if missing (without overwriting existing files).
 
 ```bash
-# One-shot local setup (Docker + Node 22 required)
 bash scripts/setup-local.sh
-
-# Or manually:
-docker compose up -d                     # Postgres
-cd apps/api && npm i && npm run dev      # API on :4000
-cd apps/web && npm i && npm run dev      # Web on :3000
 ```
+
+### 4. Run the two apps
+
+Use **two terminals** (API first is a good habit so the web client can call it immediately).
+
+**Terminal A — API (port 4000)**
+
+```bash
+cd apps/api
+npm install
+npx prisma generate --schema=../../prisma/schema.prisma   # if you did not run setup-local.sh
+npm run dev
+```
+
+- Health check: [http://localhost:4000/health](http://localhost:4000/health)
+
+**Terminal B — Web (port 3000)**
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+- App: [http://localhost:3000](http://localhost:3000)
+
+### Manual path without `setup-local.sh`
+
+If you already manage `.env` and the database yourself:
+
+```bash
+docker compose up -d   # only when using local Postgres
+cd apps/api && npm install && npx prisma generate --schema=../../prisma/schema.prisma && npx prisma migrate dev --schema=../../prisma/schema.prisma
+cd apps/web && npm install && cp -n .env.example .env
+```
+
+Then run `npm run dev` in `apps/api` and `apps/web` as in step 4.
 
 ## Stack
 
@@ -32,7 +86,6 @@ cd apps/web && npm i && npm run dev      # Web on :3000
 | Backend | Express, TypeScript (strict), Prisma ORM | Render |
 | Database | PostgreSQL 16, pgBouncer | Neon / Supabase |
 | Payments | Razorpay (UPI, cards, NB, wallets, COD) | — |
-| Fulfillment | Printrove (print-on-demand) | — |
 | Images | Cloudinary (AVIF/WebP via CDN) | — |
 | Auth | JWT + refresh rotation, Phone OTP, argon2id | — |
 | CI/CD | GitHub Actions (typecheck + lint on PR, deploy on merge) | GitHub |

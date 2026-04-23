@@ -1,8 +1,8 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 /**
- * Guest cart slice. On login, contents are POSTed to /cart/merge and then cleared.
- * Authenticated cart state lives server-side; use React Query for it.
+ * Cart slice (localStorage + Redux). When logged in, syncs to `GET/PUT /api/v1/cart`
+ * after login (`postLoginCartSync`) and on edits (`CartServerSync`).
  */
 
 export interface CartLine {

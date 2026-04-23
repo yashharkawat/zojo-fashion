@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
-import { useUpdateOrderStatus, useRetryPrintrove, useSyncPrintrove } from '@/features/admin/hooks';
-import { OrderStatusBadge, SyncStatusBadge } from '@/components/admin/StatusBadge';
+import { useUpdateOrderStatus } from '@/features/admin/hooks';
+import { OrderStatusBadge } from '@/components/admin/StatusBadge';
 import { inr, formatDate } from '@/lib/format';
 import { useAppDispatch } from '@/store/hooks';
 import { pushToast } from '@/store/slices/uiSlice';
@@ -31,8 +31,6 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
   });
 
   const updateStatus = useUpdateOrderStatus();
-  const retryPrintrove = useRetryPrintrove();
-  const syncPrintrove = useSyncPrintrove();
 
   const [trackingCourier, setTrackingCourier] = useState('');
   const [trackingAwb, setTrackingAwb] = useState('');
@@ -71,28 +69,6 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
     }
   }
 
-  async function onRetry() {
-    try {
-      await retryPrintrove.mutateAsync(order.id);
-      dispatch(pushToast({ kind: 'success', message: 'Printrove push queued', duration: 2500 }));
-    } catch (err) {
-      dispatch(pushToast({ kind: 'error', message: err instanceof Error ? err.message : 'Retry failed', duration: 4000 }));
-    }
-  }
-
-  async function onSync() {
-    try {
-      const res = await syncPrintrove.mutateAsync(order.id);
-      dispatch(pushToast({
-        kind: 'info',
-        message: res.changed ? `Updated: ${res.before} → ${res.after}` : 'Already in sync',
-        duration: 3000,
-      }));
-    } catch (err) {
-      dispatch(pushToast({ kind: 'error', message: err instanceof Error ? err.message : 'Sync failed', duration: 4000 }));
-    }
-  }
-
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -107,14 +83,11 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
         </div>
         <div className="flex flex-wrap gap-2">
           <OrderStatusBadge status={order.status} />
-          <SyncStatusBadge status={order.printroveSyncStatus} />
         </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Main */}
         <div className="space-y-6">
-          {/* Items */}
           <section className="rounded-xl border border-bg-border bg-bg-elevated">
             <header className="border-b border-bg-border px-5 py-4">
               <h2 className="font-display text-lg tracking-wide text-fg-primary">Items</h2>
@@ -133,7 +106,6 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
             </ul>
           </section>
 
-          {/* Status controls */}
           <section className="rounded-xl border border-bg-border bg-bg-elevated p-5">
             <h2 className="mb-4 font-display text-lg tracking-wide text-fg-primary">
               Advance status
@@ -173,44 +145,17 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
             </div>
           </section>
 
-          {/* Printrove controls */}
-          <section className="rounded-xl border border-bg-border bg-bg-elevated p-5">
-            <h2 className="mb-4 font-display text-lg tracking-wide text-fg-primary">
-              Printrove fulfillment
-            </h2>
-            <div className="space-y-2 text-sm">
+          {order.shipment?.awbNumber && (
+            <section className="rounded-xl border border-bg-border bg-bg-elevated p-5 text-sm text-fg-secondary">
+              <h2 className="mb-2 font-display text-lg tracking-wide text-fg-primary">Shipping</h2>
               <p>
-                Retries: <strong className="font-mono text-fg-primary">{order.printroveRetryCount}</strong>
+                AWB: <strong className="font-mono text-fg-primary">{order.shipment.awbNumber}</strong>
+                {order.shipment.courier ? ` (${order.shipment.courier})` : null}
               </p>
-              {order.shipment?.awbNumber && (
-                <p>
-                  AWB: <strong className="font-mono text-fg-primary">{order.shipment.awbNumber}</strong>{' '}
-                  ({order.shipment.courier})
-                </p>
-              )}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={onRetry}
-                disabled={retryPrintrove.isPending || order.printroveSyncStatus === 'SYNCED'}
-                className="rounded-md border border-bg-border bg-bg-overlay px-3 py-2 text-xs font-semibold uppercase tracking-widest text-fg-primary hover:border-accent hover:text-accent disabled:opacity-50"
-              >
-                Retry push
-              </button>
-              <button
-                type="button"
-                onClick={onSync}
-                disabled={syncPrintrove.isPending}
-                className="rounded-md border border-bg-border bg-bg-overlay px-3 py-2 text-xs font-semibold uppercase tracking-widest text-fg-primary hover:border-accent hover:text-accent disabled:opacity-50"
-              >
-                Sync from Printrove
-              </button>
-            </div>
-          </section>
+            </section>
+          )}
         </div>
 
-        {/* Sidebar */}
         <aside className="space-y-4">
           <div className="rounded-xl border border-bg-border bg-bg-elevated p-5 text-sm">
             <h3 className="mb-3 font-display text-base tracking-wide text-fg-primary">Customer</h3>

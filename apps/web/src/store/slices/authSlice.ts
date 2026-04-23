@@ -35,6 +35,10 @@ export const authSlice = createSlice({
       state.accessToken = action.payload;
       state.status = 'authenticated';
     },
+    /** Puts JWT back from `localStorage` on startup — `status` stays `idle` until `/auth/me` succeeds. */
+    restoreAccessToken(state, action: PayloadAction<string>) {
+      state.accessToken = action.payload;
+    },
     setUser(state, action: PayloadAction<PublicUser>) {
       state.user = action.payload;
     },
@@ -49,5 +53,5 @@ export const authSlice = createSlice({
   },
 });
 
-export const { setAuth, setAccessToken, setUser, setAuthStatus, logout } = authSlice.actions;
+export const { setAuth, setAccessToken, restoreAccessToken, setUser, setAuthStatus, logout } = authSlice.actions;
 export default authSlice.reducer;

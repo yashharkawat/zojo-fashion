@@ -26,6 +26,10 @@ export const authApi = {
   login: (input: LoginInput) =>
     api<AuthResult>('/auth/login', { method: 'POST', body: input }),
 
+  /** Sign in or sign up with a Google ID token (from the Google One Tap / Sign In button) */
+  google: (input: { idToken: string; marketingOptIn?: boolean }) =>
+    api<AuthResult>('/auth/google', { method: 'POST', body: input }),
+
   logout: () =>
     api<null>('/auth/logout', { method: 'POST' }),
 

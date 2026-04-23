@@ -79,7 +79,7 @@ function ShippingSettings() {
         <Input label="Flat rate (paise)" type="number" defaultValue={7900} hint="₹79 default" />
         <Input label="Free shipping above (paise)" type="number" defaultValue={99900} hint="₹999 default" />
       </div>
-      <Input label="COD cap (paise)" type="number" defaultValue={500000} hint="Max order value for COD" />
+      <Input label="COD (legacy)" type="number" defaultValue={500000} disabled hint="Store is prepaid-only; unused." />
       <button
         type="button"
         className="rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold uppercase tracking-widest text-white hover:bg-accent-hover"

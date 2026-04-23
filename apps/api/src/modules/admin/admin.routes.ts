@@ -46,21 +46,6 @@ adminRouter.get(
   asyncHandler(controller.listProductsHandler),
 );
 
-// ─── Printrove recovery ──────────────────────────────────────────
-adminRouter.post(
-  '/orders/:id/retry-printrove',
-  requireFullAdmin,
-  validate({ params: orderIdParamSchema }),
-  asyncHandler(controller.retryPrintroveHandler),
-);
-
-adminRouter.post(
-  '/orders/:id/sync-printrove',
-  requireFullAdmin,
-  validate({ params: orderIdParamSchema }),
-  asyncHandler(controller.syncPrintroveHandler),
-);
-
 adminRouter.post(
   '/orders/:id/mark-manual-review',
   requireFullAdmin,

@@ -41,8 +41,7 @@ export const adminListProductsQuerySchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),
-  printroveSyncStatus: z.enum(['NOT_SYNCED', 'SYNCED', 'FAILED', 'MANUAL_REVIEW']).optional(),
-  categoryId: z.string().optional(),
+  categorySlug: z.string().optional(),
   search: z.string().max(100).optional(),
 });
 

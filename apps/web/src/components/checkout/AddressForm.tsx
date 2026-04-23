@@ -12,7 +12,7 @@ import {
 
 export interface AddressFormProps {
   defaultValues?: Partial<AddressInput>;
-  onSubmit: (values: AddressInput) => void;
+  onSubmit: (values: AddressInput) => void | Promise<void>;
   submitLabel?: string;
 }
 
@@ -35,7 +35,7 @@ export function AddressForm({
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     try {
@@ -47,7 +47,6 @@ export function AddressForm({
           if (key) flat[key] = issue.message;
         }
         setErrors(flat);
-        // Focus first error field
         const firstErr = Object.keys(flat)[0];
         if (firstErr) {
           const el = document.querySelector<HTMLElement>(`[name="${firstErr}"]`);
@@ -55,7 +54,7 @@ export function AddressForm({
         }
         return;
       }
-      onSubmit(result.data);
+      await Promise.resolve(onSubmit(result.data));
     } finally {
       setSubmitting(false);
     }
@@ -80,11 +79,11 @@ export function AddressForm({
           label="Phone"
           type="tel"
           autoComplete="tel"
-          inputMode="tel"
-          placeholder="+919876543210"
+          inputMode="numeric"
+          placeholder="9876543210"
           value={values.phone ?? ''}
           onChange={(e) => setField('phone', e.target.value)}
-          hint="Format: +91 followed by 10 digits"
+          hint="10-digit Indian mobile. +91 is added automatically."
           error={errors.phone}
           required
         />

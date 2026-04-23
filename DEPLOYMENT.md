@@ -60,7 +60,6 @@ Account checklist:
 - [ ] Neon (or Supabase) — Postgres provider
 - [ ] Cloudinary — image CDN
 - [ ] Razorpay — payment gateway (test + live keys)
-- [ ] Printrove — POD API (sandbox + prod)
 - [ ] Resend — transactional email (optional, stubbed in dev)
 - [ ] MSG91 — SMS OTP (optional, logged in dev)
 - [ ] Sentry — error tracking (free tier)
@@ -264,7 +263,6 @@ Neon supports database branching — create a dev branch per PR for isolated sch
 - [ ] SSL green on both domains
 - [ ] Razorpay live keys set (both backend + frontend)
 - [ ] Razorpay webhook URL registered: `https://api.zojofashion.com/api/v1/payments/webhook`
-- [ ] Printrove webhook URL registered: `https://api.zojofashion.com/api/v1/printrove/webhook`
 - [ ] Sentry DSN set in both apps
 - [ ] Uptime monitor created
 - [ ] One test order placed end-to-end

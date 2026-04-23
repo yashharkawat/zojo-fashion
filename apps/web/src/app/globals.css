@@ -79,11 +79,31 @@ html, body {
 
 /* ─── Cinematic utilities ─── */
 
-/* Subtle grain overlay — can be applied to hero */
-.grain::after {
+/* Home hero: min layout without Tailwind (avoids broken vignette if utilities fail) */
+.hero-cinematic {
+  position: relative;
+  width: 100%;
+  min-height: max(560px, min(92vh, 100dvh));
+  overflow: hidden;
+  background-color: #0a0a0a;
+  color: #f5f5f5;
+  isolation: isolate;
+}
+
+.hero-headline {
+  font-size: clamp(2.5rem, 12vw, 11rem);
+  line-height: 0.8;
+  font-family: var(--font-bebas), Impact, sans-serif;
+  color: #f5f5f5;
+  letter-spacing: -0.02em;
+}
+
+/* Subtle grain — hero only (was global; caused odd masks if parent had no size) */
+.hero-cinematic.grain::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
   opacity: 0.08;
   mix-blend-mode: overlay;
@@ -98,11 +118,12 @@ html, body {
   color: transparent;
 }
 
-/* Cinematic vignette */
-.vignette::before {
+/* Cinematic vignette — hero only, softer edge so it can’t read as a huge black ring */
+.hero-cinematic.vignette::before {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 2;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.7) 100%);
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.35) 100%);
 }

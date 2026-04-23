@@ -4,8 +4,7 @@
  *
  * THE SERVER IS ALWAYS AUTHORITATIVE — these functions exist only so the
  * cart/checkout UI can show realistic totals before the order is created.
- * On `POST /checkout/validate`, the backend recomputes and any mismatch
- * means the UI was out of date; render the server numbers.
+ * No separate GST line; delivery is flat ₹50 (see `apps/api/src/utils/money.ts`).
  */
 
 export interface PricingBreakdown {
@@ -24,15 +23,11 @@ export interface CouponPreview {
   maxDiscountPaise?: number;
 }
 
-/** GST: 5% if per-unit MRP < ₹1000, else 12%. Apparel bracket. */
-function gstRate(maxUnitPricePaise: number): number {
-  return maxUnitPricePaise < 100_000 ? 0.05 : 0.12;
-}
-
-/** Flat ₹79 shipping; free above ₹999. */
+/** Flat ₹50 delivery; waived with free-shipping coupon or when subtotal after discount is 0. */
 function shippingFor(subtotalAfterDiscount: number, freeShippingCoupon: boolean): number {
   if (freeShippingCoupon) return 0;
-  return subtotalAfterDiscount >= 99_900 ? 0 : 7_900;
+  if (subtotalAfterDiscount <= 0) return 0;
+  return 5_000; // ₹50
 }
 
 export function computeCartPricing(params: {
@@ -67,8 +62,7 @@ export function computeCartPricing(params: {
 
   const afterDiscount = subtotalPaise - discountPaise;
   const shippingPaise = shippingFor(afterDiscount, freeShipping);
-  const maxUnit = params.items.reduce((m, i) => Math.max(m, i.unitPricePaise), 0);
-  const taxPaise = Math.round(afterDiscount * gstRate(maxUnit));
+  const taxPaise = 0;
   const totalPaise = afterDiscount + shippingPaise + taxPaise;
 
   return { subtotalPaise, discountPaise, shippingPaise, taxPaise, totalPaise };

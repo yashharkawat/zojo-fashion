@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 
 import { PageTransition } from '@/components/motion/PageTransition';
@@ -10,8 +9,6 @@ import { useAppDispatch } from '@/store/hooks';
 import { pushToast } from '@/store/slices/uiSlice';
 
 export default function OrderSuccessPage({ params }: { params: { id: string } }) {
-  const searchParams = useSearchParams();
-  const method = searchParams.get('method');
   const dispatch = useAppDispatch();
   const reduce = useReducedMotion();
 
@@ -48,10 +45,7 @@ export default function OrderSuccessPage({ params }: { params: { id: string } })
         </h1>
         <p className="mt-4 max-w-md text-fg-secondary">
           Your order <strong className="font-mono text-fg-primary">{params.id}</strong> is in the
-          queue.
-          {method === 'cod'
-            ? ' We\'ll reach out to confirm delivery. Please keep cash ready.'
-            : ' Payment received — we\'ll start production right away.'}
+          queue. Payment received — we&apos;ll start production right away.
         </p>
 
         <p className="mt-6 text-sm text-fg-muted">

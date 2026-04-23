@@ -16,9 +16,10 @@ import { authRouter } from './modules/auth/auth.routes';
 import { productsRouter } from './modules/products/products.routes';
 import { ordersRouter } from './modules/orders/orders.routes';
 import { paymentsRouter } from './modules/payments/payments.routes';
-import { wishlistRouter } from './modules/wishlist/wishlist.routes';
 import { adminRouter } from './modules/admin/admin.routes';
-import { printroveWebhookRouter } from './modules/printrove/printrove.webhook.routes';
+import { settingsRouter } from './modules/settings/settings.routes';
+import { addressesRouter } from './modules/addresses/addresses.routes';
+import { cartRouter } from './modules/cart/cart.routes';
 
 export function createApp(): Application {
   const app = express();
@@ -43,7 +44,6 @@ export function createApp(): Application {
 
   // IMPORTANT: webhook routes need raw body — mount them BEFORE json parser
   app.use('/api/v1/payments/webhook', paymentsRouter);
-  app.use('/api/v1/printrove/webhook', printroveWebhookRouter);
 
   app.use(express.json({ limit: '1mb' }));
   app.use(globalLimiter);
@@ -64,10 +64,12 @@ export function createApp(): Application {
   // v1 routers
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/products', productsRouter);
+  app.use('/api/v1/addresses', addressesRouter);
+  app.use('/api/v1/cart', cartRouter);
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/payments', paymentsRouter);
-  app.use('/api/v1/wishlist', wishlistRouter);
   app.use('/api/v1/admin', adminRouter);
+  app.use('/api/v1/settings', settingsRouter);
 
   // 404
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.path} not found`)));
