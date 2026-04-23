@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  async rewrites() {
+    // Browsers still request /favicon.ico; map to the app icon to avoid 404s in the console.
+    return [{ source: '/favicon.ico', destination: '/icon.svg' }];
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },

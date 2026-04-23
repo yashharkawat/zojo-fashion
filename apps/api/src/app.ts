@@ -48,8 +48,14 @@ export function createApp(): Application {
   app.use(express.json({ limit: '1mb' }));
   app.use(globalLimiter);
 
-  // Health (no DB)
-  app.get('/health', (_req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+  // Health (no DB). `commit` is set on Render (RENDER_GIT_COMMIT) to verify a fresh deploy.
+  app.get('/health', (_req, res) =>
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null,
+    }),
+  );
 
   // Keep-alive (hits DB — use in Uptime Kuma to prevent Railway sleep + keep Neon warm)
   app.get('/ping', async (_req, res) => {

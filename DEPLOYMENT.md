@@ -272,6 +272,8 @@ Neon supports database branching — create a dev branch per PR for isolated sch
 - [ ] `npm run typecheck` passes (CI enforces this)
 - [ ] No pending migrations (`prisma migrate status`)
 - [ ] Env vars unchanged (or updated in dashboard)
+- [ ] **Backend actually shipped the current API**: `curl -sS "https://<api-host>/api/v1/cart"` (no cookies) should return **401** `UNAUTHORIZED` (or your auth error), **not 404** `Route GET /api/v1/cart not found`. A 404 on `/api/v1/cart/*` means the running server is an old build: push latest `main`, then on Render use **Clear build cache & deploy**, and confirm `GET /health` includes a new `commit` (short git SHA) after deploy.
+- [ ] `CORS_ALLOWED_ORIGINS` on the API includes your real storefront origin (for example `https://zojo-fashion.yashharkawat.com` if you use that domain), comma-separated, no trailing slashes.
 - [ ] Quick smoke test: home → PDP → add to cart → checkout → cancel
 
 ---
