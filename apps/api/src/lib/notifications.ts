@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { prisma } from '../config/prisma';
 import { logger } from '../config/logger';
 
 /**
@@ -130,6 +131,7 @@ export async function sendSms(payload: SmsPayload): Promise<NotificationResult> 
 // ──────────────── Composite "order events" ────────────────
 
 export interface OrderNotificationContext {
+  orderId: string;
   orderNumber: string;
   customerName: string;
   customerEmail: string;
@@ -160,7 +162,100 @@ export async function notifyOrderConfirmed(ctx: OrderNotificationContext): Promi
           body: `Zojo Fashion: order ${ctx.orderNumber} confirmed (${inr(ctx.totalPaise)}). We'll text you when it ships.`,
         })
       : Promise.resolve({ ok: true }),
+    notifyMerchantWhatsappOnNewPaidOrder(ctx),
   ]);
+}
+
+/**
+ * Personal / small-store alert to your phone when a customer payment clears.
+ * Configure one of:
+ * - CallMeBot: https://www.callmebot.com/blog/free-api-whatsapp/ — set CALLMEBOT_PHONE + CALLMEBOT_APIKEY
+ * - Twilio WhatsApp: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM, MERCHANT_WHATSAPP_TO
+ *
+ * Idempotent: only the first success path sets `merchantWhatsappNotifiedAt` on the order.
+ */
+async function notifyMerchantWhatsappOnNewPaidOrder(ctx: OrderNotificationContext): Promise<void> {
+  const callmeKey = process.env.CALLMEBOT_APIKEY;
+  const callmePhone = process.env.CALLMEBOT_PHONE;
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!((callmeKey && callmePhone) || (twilioSid && twilioToken))) {
+    logger.debug('[whatsapp:merchant] skipped (set CALLMEBOT_* or TWILIO_*)');
+    return;
+  }
+
+  const text = `New Zojo order ${ctx.orderNumber} — ${inr(ctx.totalPaise)}. ${ctx.customerEmail}${
+    ctx.customerPhone ? ` · ${ctx.customerPhone}` : ''
+  }`;
+
+  const claimed = await prisma.order.updateMany({
+    where: { id: ctx.orderId, merchantWhatsappNotifiedAt: null },
+    data: { merchantWhatsappNotifiedAt: new Date() },
+  });
+  if (claimed.count === 0) {
+    return;
+  }
+
+  try {
+    if (callmeKey && callmePhone) {
+      const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(
+        callmePhone,
+      )}&text=${encodeURIComponent(text)}&apikey=${encodeURIComponent(callmeKey)}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const body = await res.text();
+        logger.error({ status: res.status, body }, 'CallMeBot WhatsApp failed');
+        await prisma.order.update({
+          where: { id: ctx.orderId },
+          data: { merchantWhatsappNotifiedAt: null },
+        });
+        return;
+      }
+      logger.info({ orderId: ctx.orderId }, 'merchant WhatsApp sent (CallMeBot)');
+      return;
+    }
+
+    const from = process.env.TWILIO_WHATSAPP_FROM;
+    const to = process.env.MERCHANT_WHATSAPP_TO;
+    if (!from || !to) {
+      logger.warn('[whatsapp:merchant] Twilio creds set but missing TWILIO_WHATSAPP_FROM or MERCHANT_WHATSAPP_TO');
+      await prisma.order.update({
+        where: { id: ctx.orderId },
+        data: { merchantWhatsappNotifiedAt: null },
+      });
+      return;
+    }
+    const auth = Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64');
+    const body = new URLSearchParams({
+      To: to.startsWith('whatsapp:') ? to : `whatsapp:${to}`,
+      From: from.startsWith('whatsapp:') ? from : `whatsapp:${from}`,
+      Body: text,
+    });
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      },
+    );
+    if (!res.ok) {
+      const errBody = await res.text();
+      logger.error({ status: res.status, errBody }, 'Twilio WhatsApp failed');
+      await prisma.order.update({
+        where: { id: ctx.orderId },
+        data: { merchantWhatsappNotifiedAt: null },
+      });
+      return;
+    }
+    logger.info({ orderId: ctx.orderId }, 'merchant WhatsApp sent (Twilio)');
+  } catch (err) {
+    logger.error({ err, orderId: ctx.orderId }, 'merchant WhatsApp exception');
+    await prisma.order.update({
+      where: { id: ctx.orderId },
+      data: { merchantWhatsappNotifiedAt: null },
+    });
+  }
 }
 
 export async function notifyOrderShipped(ctx: OrderNotificationContext): Promise<void> {

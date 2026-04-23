@@ -2,6 +2,7 @@ import { VerificationTokenType, type Prisma } from '@prisma/client';
 import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
+import { publicWebBaseUrl } from '../../config/publicUrl';
 import { logger } from '../../config/logger';
 import { hashPassword, verifyPassword } from '../../lib/password';
 import {
@@ -546,9 +547,8 @@ export async function sendEmailVerification(userId: string): Promise<{ ok: true 
     },
   });
 
-  const link = `${env.API_BASE_URL.replace(/\/api.*$/, '')}/verify-email?token=${raw}`;
-  // Frontend URL would be preferable; reading from a separate env var is cleaner at scale.
-  await sendEmail({
+  const link = `${publicWebBaseUrl()}/verify-email?token=${raw}`;
+  const sent = await sendEmail({
     to: user.email,
     subject: 'Verify your Zojo Fashion email',
     html: `
@@ -559,6 +559,14 @@ export async function sendEmailVerification(userId: string): Promise<{ ok: true 
     `,
     tags: { type: 'email_verification' },
   });
+  if (!sent.ok) {
+    logger.error({ to: user.email, reason: sent.reason }, 'Verify-email send failed');
+  } else if (sent.reason?.includes('stubbed')) {
+    logger.warn(
+      { to: user.email },
+      'Verify-email not sent: set GMAIL_USER+GMAIL_APP_PASSWORD or RESEND_API_KEY on the API',
+    );
+  }
 
   return { ok: true };
 }
@@ -637,8 +645,8 @@ export async function requestPasswordReset(
       },
     });
 
-    const link = `${env.API_BASE_URL.replace(/\/api.*$/, '')}/password-reset?token=${raw}`;
-    await sendEmail({
+    const link = `${publicWebBaseUrl()}/password-reset?token=${raw}`;
+    const sent = await sendEmail({
       to: user.email,
       subject: 'Reset your Zojo Fashion password',
       html: `
@@ -649,6 +657,16 @@ export async function requestPasswordReset(
       `,
       tags: { type: 'password_reset' },
     });
+    if (!sent.ok) {
+      logger.error({ to: user.email, reason: sent.reason }, 'Password reset email send failed');
+    } else if (sent.reason?.includes('stubbed')) {
+      logger.warn(
+        { to: user.email },
+        'Password reset not sent: set GMAIL_USER+GMAIL_APP_PASSWORD or RESEND_API_KEY on the API',
+      );
+    } else {
+      logger.info({ to: user.email }, 'Password reset email sent');
+    }
   }
 
   return { ok: true };

@@ -6,6 +6,13 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   API_BASE_URL: z.string().url(),
 
+  /**
+   * Public web origin for links in emails (password reset, verify email).
+   * e.g. http://localhost:3000 or https://zojofashion.com
+   * If omitted, derived from API_BASE_URL (localhost:4000 → :3000; api.* subdomain → apex).
+   */
+  FRONTEND_URL: z.string().url().optional(),
+
   DATABASE_URL: z.string().min(1),
 
   CORS_ALLOWED_ORIGINS: z

@@ -191,6 +191,7 @@ function scheduleOrderConfirmationEmail(orderId: string): void {
     if (!order) return;
     try {
       await notifyOrderConfirmed({
+        orderId: order.id,
         orderNumber: order.orderNumber,
         customerName: order.user.firstName ?? 'there',
         customerEmail: order.user.email,

@@ -141,9 +141,11 @@ export async function listMy(userId: string, q: ListMyOrdersQuery) {
   };
 }
 
-export async function getOne(userId: string, isAdmin: boolean, orderId: string) {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
+export async function getOne(userId: string, isAdmin: boolean, orderIdOrNumber: string) {
+  const order = await prisma.order.findFirst({
+    where: {
+      OR: [{ id: orderIdOrNumber }, { orderNumber: orderIdOrNumber }],
+    },
     include: {
       items: true,
       payment: true,
