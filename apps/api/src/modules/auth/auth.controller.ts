@@ -17,11 +17,18 @@ import type {
 const REFRESH_COOKIE_NAME = 'rt';
 const REFRESH_COOKIE_PATH = '/api/v1/auth';
 
+/**
+ * In production the API and web live on different subdomains
+ * (api.zojo-fashion.* vs zojo-fashion.*). Cross-subdomain cookies require
+ * SameSite=None + Secure. In local dev we use Lax (same-origin, no HTTPS).
+ */
+const COOKIE_SAME_SITE = env.COOKIE_SECURE ? 'none' : 'lax';
+
 function setRefreshCookie(res: Response, raw: string, expiresAt: Date): void {
   res.cookie(REFRESH_COOKIE_NAME, raw, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: 'lax',
+    sameSite: COOKIE_SAME_SITE,
     domain: env.COOKIE_DOMAIN,
     path: REFRESH_COOKIE_PATH,
     expires: expiresAt,
@@ -32,7 +39,7 @@ function clearRefreshCookie(res: Response): void {
   res.clearCookie(REFRESH_COOKIE_NAME, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: 'lax',
+    sameSite: COOKIE_SAME_SITE,
     domain: env.COOKIE_DOMAIN,
     path: REFRESH_COOKIE_PATH,
   });
