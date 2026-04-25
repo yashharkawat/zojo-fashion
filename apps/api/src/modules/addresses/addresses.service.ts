@@ -24,28 +24,40 @@ export async function listForUser(userId: string) {
 export async function createForUser(userId: string, input: CreateAddressBody) {
   const { saveForLater, ...rest } = input;
 
-  if (saveForLater) {
-    await prisma.address.updateMany({
-      where: { userId, isDefault: true },
-      data: { isDefault: false },
-    });
-  }
+  const [, address] = await prisma.$transaction(async (tx) => {
+    if (saveForLater) {
+      await tx.address.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
 
-  return prisma.address.create({
-    data: {
-      userId,
-      type: 'HOME',
-      fullName: rest.fullName,
-      phone: rest.phone,
-      line1: rest.line1,
-      line2: rest.line2,
-      landmark: rest.landmark,
-      city: rest.city,
-      state: rest.state,
-      pincode: rest.pincode,
-      country: 'IN',
-      isDefault: saveForLater,
-    },
-    select: { id: true, fullName: true, phone: true, isDefault: true, createdAt: true },
+    // Back-fill the user's own phone if they don't have one yet (e.g. Google sign-up).
+    await tx.user.updateMany({
+      where: { id: userId, phone: null },
+      data: { phone: rest.phone },
+    });
+
+    const created = await tx.address.create({
+      data: {
+        userId,
+        type: 'HOME',
+        fullName: rest.fullName,
+        phone: rest.phone,
+        line1: rest.line1,
+        line2: rest.line2,
+        landmark: rest.landmark,
+        city: rest.city,
+        state: rest.state,
+        pincode: rest.pincode,
+        country: 'IN',
+        isDefault: saveForLater,
+      },
+      select: { id: true, fullName: true, phone: true, isDefault: true, createdAt: true },
+    });
+
+    return [null, created] as const;
   });
+
+  return address;
 }
