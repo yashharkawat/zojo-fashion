@@ -57,6 +57,19 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
   const [addingToCart, setAddingToCart] = useState(false);
 
   const galleryColor = selectedColor ?? matrix.colors[0]?.name ?? null;
+
+  // Preload every color's front + back images as soon as the PDP mounts so
+  // switching colors feels instant instead of waiting for a network fetch.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    matrix.colors.forEach((c) => {
+      productImagesForColor(product.images, c.name).forEach((img) => {
+        if (!img.url || img.url.startsWith('data:')) return;
+        const preloader = new window.Image();
+        preloader.src = img.url;
+      });
+    });
+  }, [product.id, product.images, matrix.colors]);
   const displayImages = useMemo(
     () => productImagesForColor(product.images, galleryColor),
     [product.images, galleryColor],
