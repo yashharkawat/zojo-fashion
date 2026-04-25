@@ -10,8 +10,7 @@ import { cn } from '@/lib/cn';
 const ADMIN_NAV = [
   { href: '/admin', label: 'Overview', exact: true as boolean },
   { href: '/admin/orders', label: 'Orders', exact: false },
-  { href: '/admin/products', label: 'Products', exact: false },
-  { href: '/admin/products/upload', label: 'Quick Create', exact: false },
+  { href: '/admin/products', label: 'Products', exact: true },
   { href: '/admin/analytics', label: 'Analytics', exact: false },
   { href: '/admin/settings', label: 'Settings', exact: false },
 ];
@@ -41,7 +40,7 @@ function AdminSidebar() {
         <nav className="space-y-0.5" aria-label="Admin sections">
           {ADMIN_NAV.map((item) => {
             const active = item.exact
-              ? pathname === item.href
+              ? pathname === item.href || pathname.startsWith(`${item.href}/`)
               : pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
@@ -58,6 +57,22 @@ function AdminSidebar() {
               </Link>
             );
           })}
+
+          {/* Quick Create — prominent action button */}
+          <div className="pt-2">
+            <Link
+              href="/admin/products/upload"
+              className={cn(
+                'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                pathname === '/admin/products/upload'
+                  ? 'bg-accent text-white'
+                  : 'border border-accent/40 text-accent hover:bg-accent hover:text-white',
+              )}
+            >
+              <span className="text-base leading-none">+</span>
+              Add Product
+            </Link>
+          </div>
         </nav>
       </div>
     </aside>

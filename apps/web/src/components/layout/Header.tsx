@@ -14,7 +14,7 @@ export function Header() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const cartCount = useAppSelector(selectCartCount);
-  const { isAuthenticated, user, status: authStatus } = useAuth();
+  const { isAuthenticated, user, status: authStatus, isAdmin } = useAuth();
   const mounted = useHasMounted(); // gate hydration-unsafe renders (cart count, auth state)
   const [query, setQuery] = useState('');
 
@@ -77,14 +77,24 @@ export function Header() {
               aria-hidden
             />
           ) : isAuthenticated ? (
-            <Link
-              href="/profile"
-              className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary md:px-3"
-              aria-label={`Account — ${user?.firstName ?? 'profile'}`}
-            >
-              <UserIcon className="h-5 w-5 md:hidden" />
-              <span className="hidden md:inline">Hi, {user?.firstName ?? 'You'}</span>
-            </Link>
+            <>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="hidden rounded-lg border border-accent/40 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-accent hover:bg-accent hover:text-white md:inline-flex"
+                >
+                  Admin
+                </Link>
+              )}
+              <Link
+                href="/profile"
+                className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary md:px-3"
+                aria-label={`Account — ${user?.firstName ?? 'profile'}`}
+              >
+                <UserIcon className="h-5 w-5 md:hidden" />
+                <span className="hidden md:inline">Hi, {user?.firstName ?? 'You'}</span>
+              </Link>
+            </>
           ) : (
             <Link
               href="/login"

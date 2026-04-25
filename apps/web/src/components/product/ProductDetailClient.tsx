@@ -16,6 +16,7 @@ import { VariantPicker, resolveVariant } from './VariantPicker';
 import { StockStatus } from './StockStatus';
 import { SizeGuide } from './SizeGuide';
 import { ProductDetailsAccordion } from './ProductDetailsAccordion';
+import { AdminProductBar } from './AdminProductBar';
 
 import { buildVariantMatrixForPdp, type ProductDetail } from '@/types/product';
 import { productImagesForColor } from '@/lib/product-images';
@@ -185,6 +186,12 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
             onOpenSizeGuide={() => setSizeGuideOpen(true)}
           />
 
+          <AdminProductBar
+            productId={product.id}
+            selectedColor={selectedColor}
+            currentDefaultColor={product.defaultColor}
+          />
+
           {variant && <StockStatus stock={variant.stock} />}
 
           {/* Actions */}
@@ -310,6 +317,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
         onClose={() => setSizeGuideOpen(false)}
         rows={product.sizeChart?.rows}
       />
+
     </>
   );
 }

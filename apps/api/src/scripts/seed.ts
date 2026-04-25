@@ -24,9 +24,24 @@ const prisma = new PrismaClient();
 
 const ARGON_OPTS: argon2.Options = { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
-// Storefront mockups: served by Next as `/catalog/{mockFolder}/{color-slug}/front.webp` (symlink `public/catalog` → repo `images-mockups-webp`).
-function catalogPath(folder: string, file: string): string {
-  return `/catalog/${folder}/${file}`;
+// Image URL strategy:
+//  - If CLOUDINARY_CLOUD_NAME / CLOUDINARY_URL is set, generate CDN URLs directly.
+//    Format: https://res.cloudinary.com/{cloud}/image/upload/zojo-catalog/{slug}/{colorSlug}/front.webp
+//  - Otherwise fall back to local symlink paths (dev only, `public/catalog` → images-mockups-webp).
+const CLOUD_NAME = (() => {
+  if (process.env.CLOUDINARY_URL) {
+    const m = process.env.CLOUDINARY_URL.match(/@(.+)$/);
+    return m ? m[1] : null;
+  }
+  return process.env.CLOUDINARY_CLOUD_NAME ?? null;
+})();
+
+function imageUrl(mockFolder: string, colorSlug: string, view: 'front' | 'back'): string {
+  if (CLOUD_NAME) {
+    // Cloudinary public_id matches what upload_to_cloudinary.ts uploaded: zojo-catalog/{mockFolder}/{colorSlug}/{view}
+    return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/zojo-catalog/${mockFolder}/${colorSlug}/${view}.webp`;
+  }
+  return `/catalog/${mockFolder}/${colorSlug}/${view}.webp`;
 }
 
 function colorNameToSlug(name: string): string {
@@ -309,10 +324,10 @@ function buildImageRows(p: ProductSeed) {
   }[] = [];
   for (let ci = 0; ci < half; ci++) {
     const c = colors[ci]!;
-    const slug = colorNameToSlug(c.name);
+    const colorSlug = colorNameToSlug(c.name);
     out.push({
-      url: catalogPath(p.mockFolder, `${slug}/back.webp`),
-      publicId: `local/${p.slug}-c${ci}-back`,
+      url: imageUrl(p.mockFolder, colorSlug, 'back'),
+      publicId: CLOUD_NAME ? `zojo-catalog/${p.mockFolder}/${colorSlug}/back` : `local/${p.slug}-c${ci}-back`,
       alt: `${p.title} — ${c.name}, back`,
       sortOrder: ci,
       isPrimary: false,
@@ -321,10 +336,10 @@ function buildImageRows(p: ProductSeed) {
   }
   for (let ci = 0; ci < half; ci++) {
     const c = colors[ci]!;
-    const slug = colorNameToSlug(c.name);
+    const colorSlug = colorNameToSlug(c.name);
     out.push({
-      url: catalogPath(p.mockFolder, `${slug}/front.webp`),
-      publicId: `local/${p.slug}-c${ci}-front`,
+      url: imageUrl(p.mockFolder, colorSlug, 'front'),
+      publicId: CLOUD_NAME ? `zojo-catalog/${p.mockFolder}/${colorSlug}/front` : `local/${p.slug}-c${ci}-front`,
       alt: `${p.title} — ${c.name}, front`,
       sortOrder: half + ci,
       isPrimary: c.name === p.defaultColor,
@@ -337,14 +352,14 @@ function buildImageRows(p: ProductSeed) {
 async function createProductRecord(p: ProductSeed, sizeChartId?: string): Promise<void> {
   const imageRows = buildImageRows(p);
   const colorList = p.colors;
-  const variantRows = SIZES.flatMap((size, si) =>
+  const variantRows = SIZES.flatMap((size, _si) =>
     colorList.map((color, ci) => ({
       sku: `ZJ-${p.slug.replace(/-/g, '').slice(0, 10).toUpperCase()}-C${ci}-${size}`,
       size,
       color: color.name,
       colorHex: color.hex,
       price: p.basePrice,
-      stock: si === 0 && ci === 1 ? 0 : si === 4 ? 3 : 50,
+      stock: 50,
       isActive: true,
     })),
   );
