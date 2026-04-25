@@ -167,36 +167,69 @@ export async function notifyOrderConfirmed(ctx: OrderNotificationContext): Promi
 }
 
 /**
- * Personal / small-store alert to your phone when a customer payment clears.
- * Configure one of:
- * - CallMeBot: https://www.callmebot.com/blog/free-api-whatsapp/ — set CALLMEBOT_PHONE + CALLMEBOT_APIKEY
- * - Twilio WhatsApp: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM, MERCHANT_WHATSAPP_TO
+ * Merchant alert when a customer payment clears. Tries providers in order:
+ *   1. Telegram bot (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID) — free, instant, recommended
+ *   2. CallMeBot WhatsApp (CALLMEBOT_PHONE + CALLMEBOT_APIKEY)
+ *   3. Twilio WhatsApp (TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_WHATSAPP_FROM + MERCHANT_WHATSAPP_TO)
  *
  * Idempotent: only the first success path sets `merchantWhatsappNotifiedAt` on the order.
  */
 async function notifyMerchantWhatsappOnNewPaidOrder(ctx: OrderNotificationContext): Promise<void> {
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
   const callmeKey = process.env.CALLMEBOT_APIKEY;
   const callmePhone = process.env.CALLMEBOT_PHONE;
   const twilioSid = process.env.TWILIO_ACCOUNT_SID;
   const twilioToken = process.env.TWILIO_AUTH_TOKEN;
-  if (!((callmeKey && callmePhone) || (twilioSid && twilioToken))) {
-    logger.debug('[whatsapp:merchant] skipped (set CALLMEBOT_* or TWILIO_*)');
+
+  const hasAnyProvider =
+    (telegramToken && telegramChatId) ||
+    (callmeKey && callmePhone) ||
+    (twilioSid && twilioToken);
+
+  if (!hasAnyProvider) {
+    logger.debug('[merchant-notify] skipped — set TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID or CALLMEBOT_* or TWILIO_*');
     return;
   }
 
-  const text = `New Zojo order ${ctx.orderNumber} — ${inr(ctx.totalPaise)}. ${ctx.customerEmail}${
-    ctx.customerPhone ? ` · ${ctx.customerPhone}` : ''
-  }`;
+  const text =
+    `🛍️ New Zojo order!\n` +
+    `Order: ${ctx.orderNumber}\n` +
+    `Amount: ${inr(ctx.totalPaise)}\n` +
+    `Customer: ${ctx.customerEmail}` +
+    (ctx.customerPhone ? `\nPhone: ${ctx.customerPhone}` : '');
 
   const claimed = await prisma.order.updateMany({
     where: { id: ctx.orderId, merchantWhatsappNotifiedAt: null },
     data: { merchantWhatsappNotifiedAt: new Date() },
   });
-  if (claimed.count === 0) {
-    return;
-  }
+  if (claimed.count === 0) return;
+
+  const resetClaim = () =>
+    prisma.order.update({ where: { id: ctx.orderId }, data: { merchantWhatsappNotifiedAt: null } });
 
   try {
+    // ── 1. Telegram (preferred) ──────────────────────────────
+    if (telegramToken && telegramChatId) {
+      const res = await fetch(
+        `https://api.telegram.org/bot${telegramToken}/sendMessage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: telegramChatId, text }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.text();
+        logger.error({ status: res.status, body }, 'Telegram notify failed');
+        await resetClaim();
+        return;
+      }
+      logger.info({ orderId: ctx.orderId }, 'merchant notified via Telegram');
+      return;
+    }
+
+    // ── 2. CallMeBot WhatsApp ────────────────────────────────
     if (callmeKey && callmePhone) {
       const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(
         callmePhone,
@@ -205,24 +238,19 @@ async function notifyMerchantWhatsappOnNewPaidOrder(ctx: OrderNotificationContex
       if (!res.ok) {
         const body = await res.text();
         logger.error({ status: res.status, body }, 'CallMeBot WhatsApp failed');
-        await prisma.order.update({
-          where: { id: ctx.orderId },
-          data: { merchantWhatsappNotifiedAt: null },
-        });
+        await resetClaim();
         return;
       }
-      logger.info({ orderId: ctx.orderId }, 'merchant WhatsApp sent (CallMeBot)');
+      logger.info({ orderId: ctx.orderId }, 'merchant notified via CallMeBot');
       return;
     }
 
+    // ── 3. Twilio WhatsApp ───────────────────────────────────
     const from = process.env.TWILIO_WHATSAPP_FROM;
     const to = process.env.MERCHANT_WHATSAPP_TO;
     if (!from || !to) {
-      logger.warn('[whatsapp:merchant] Twilio creds set but missing TWILIO_WHATSAPP_FROM or MERCHANT_WHATSAPP_TO');
-      await prisma.order.update({
-        where: { id: ctx.orderId },
-        data: { merchantWhatsappNotifiedAt: null },
-      });
+      logger.warn('[merchant-notify] Twilio creds set but TWILIO_WHATSAPP_FROM or MERCHANT_WHATSAPP_TO missing');
+      await resetClaim();
       return;
     }
     const auth = Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64');
@@ -242,19 +270,13 @@ async function notifyMerchantWhatsappOnNewPaidOrder(ctx: OrderNotificationContex
     if (!res.ok) {
       const errBody = await res.text();
       logger.error({ status: res.status, errBody }, 'Twilio WhatsApp failed');
-      await prisma.order.update({
-        where: { id: ctx.orderId },
-        data: { merchantWhatsappNotifiedAt: null },
-      });
+      await resetClaim();
       return;
     }
-    logger.info({ orderId: ctx.orderId }, 'merchant WhatsApp sent (Twilio)');
+    logger.info({ orderId: ctx.orderId }, 'merchant notified via Twilio');
   } catch (err) {
-    logger.error({ err, orderId: ctx.orderId }, 'merchant WhatsApp exception');
-    await prisma.order.update({
-      where: { id: ctx.orderId },
-      data: { merchantWhatsappNotifiedAt: null },
-    });
+    logger.error({ err, orderId: ctx.orderId }, 'merchant notify exception');
+    await resetClaim();
   }
 }
 
