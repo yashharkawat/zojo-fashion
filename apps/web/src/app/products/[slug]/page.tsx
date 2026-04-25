@@ -20,19 +20,19 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
   return (
     <PageTransition>
       <div className="mx-auto max-w-7xl px-4 pb-6 pt-4 md:pt-8">
-        <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-xs text-fg-secondary">
-          <Link href="/" className="hover:text-fg-primary">Home</Link>
-          <span className="text-fg-muted">/</span>
-          <Link href="/products" className="hover:text-fg-primary">Shop</Link>
-          <span className="text-fg-muted">/</span>
+        <nav aria-label="Breadcrumb" className="mb-6 flex min-w-0 flex-wrap items-center gap-1 text-xs text-fg-secondary">
+          <Link href="/" className="shrink-0 hover:text-fg-primary">Home</Link>
+          <span className="shrink-0 text-fg-muted">/</span>
+          <Link href="/products" className="shrink-0 hover:text-fg-primary">Shop</Link>
+          <span className="shrink-0 text-fg-muted">/</span>
           <Link
             href={`/products?category=${encodeURIComponent(product.categorySlug)}`}
-            className="hover:text-fg-primary"
+            className="shrink-0 hover:text-fg-primary"
           >
             {categoryLabelFromSlug(product.categorySlug)}
           </Link>
-          <span className="text-fg-muted">/</span>
-          <span className="truncate text-fg-primary">{product.title}</span>
+          <span className="shrink-0 text-fg-muted">/</span>
+          <span className="min-w-0 truncate text-fg-primary">{product.title}</span>
         </nav>
 
         <ProductDetailClient product={product} />

@@ -74,7 +74,7 @@ export function CartDrawer() {
                 type="button"
                 aria-label="Close cart"
                 onClick={() => dispatch(closeCartDrawer())}
-                className="rounded-md p-1.5 text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary"
+                className="rounded-md p-2.5 text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" d="M6 6l12 12M6 18L18 6" />

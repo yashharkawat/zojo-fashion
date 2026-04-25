@@ -190,7 +190,7 @@ export function ProductGallery({ images, title }: ProductGalleryProps) {
                   aria-selected={face === i}
                   onClick={() => setFace(i)}
                   className={cn(
-                    'rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-widest transition-all',
+                    'rounded-full px-4 py-2.5 text-xs font-semibold uppercase tracking-widest transition-all',
                     face === i ? 'bg-accent text-white' : 'text-fg-secondary hover:text-fg-primary',
                   )}
                 >

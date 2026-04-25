@@ -54,7 +54,7 @@ function OrdersContent() {
           <button
             type="button"
             onClick={() => void refetch()}
-            className="ml-2 font-semibold underline"
+            className="ml-2 inline-flex min-h-[44px] items-center font-semibold underline"
           >
             Retry
           </button>

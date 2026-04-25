@@ -82,7 +82,7 @@ function OrdersTab() {
       {errMsg && (
         <div className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
           {errMsg}
-          <button type="button" onClick={() => void refetch()} className="ml-2 font-semibold underline">
+          <button type="button" onClick={() => void refetch()} className="ml-2 inline-flex min-h-[44px] items-center font-semibold underline">
             Retry
           </button>
         </div>
@@ -272,7 +272,7 @@ function ProfileContent() {
             type="button"
             onClick={() => setActiveTab(tab)}
             className={cn(
-              'relative px-5 pb-3 pt-1 font-display text-sm tracking-[0.18em] uppercase transition-colors',
+              'relative min-h-[44px] px-5 pb-3 pt-2 font-display text-sm tracking-[0.18em] uppercase transition-colors',
               activeTab === tab
                 ? 'text-fg-primary after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-accent'
                 : 'text-fg-secondary hover:text-fg-primary',

@@ -50,7 +50,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${bebas.variable} ${dmSans.variable}`}>
       <body
-        className="min-h-screen bg-bg-base font-sans text-fg-primary antialiased"
+        className="min-h-screen overflow-x-hidden bg-bg-base font-sans text-fg-primary antialiased"
         style={{ backgroundColor: '#0A0A0A', color: '#F5F5F5' }}
       >
         <Providers>

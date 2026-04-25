@@ -63,7 +63,7 @@ export function VariantPicker({
                   onClick={() => onColorChange(c.name)}
                   disabled={!available}
                   className={cn(
-                    'group relative h-10 w-10 rounded-full transition-all',
+                    'group relative h-11 w-11 rounded-full transition-all',
                     selected
                       ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg-base'
                       : 'ring-1 ring-bg-border hover:ring-fg-muted',
@@ -95,7 +95,7 @@ export function VariantPicker({
             <button
               type="button"
               onClick={onOpenSizeGuide}
-              className="text-xs font-medium text-accent underline-offset-4 hover:underline"
+              className="px-2 py-1.5 text-xs font-medium text-accent underline-offset-4 hover:underline"
             >
               Size guide
             </button>

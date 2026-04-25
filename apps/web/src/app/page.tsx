@@ -27,7 +27,7 @@ export default async function HomePage() {
         </div>
       )}
 
-      <InstagramFeed />
+      {/* <InstagramFeed /> */}
     </>
   );
 }

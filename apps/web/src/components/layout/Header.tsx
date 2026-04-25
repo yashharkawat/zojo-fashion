@@ -65,7 +65,7 @@ export function Header() {
             type="button"
             aria-label="Search"
             onClick={() => router.push('/products')}
-            className="rounded-lg p-2 text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary md:hidden"
+            className="rounded-lg p-2.5 text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary md:hidden"
           >
             <SearchIcon className="h-5 w-5" />
           </button>
@@ -110,7 +110,7 @@ export function Header() {
           <button
             type="button"
             onClick={() => dispatch(openCartDrawer())}
-            className="relative rounded-lg p-2 text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary"
+            className="relative rounded-lg p-2.5 text-fg-secondary hover:bg-bg-elevated hover:text-fg-primary"
             aria-label={mounted ? `Open cart, ${cartCount} items` : 'Open cart'}
           >
             <BagIcon className="h-5 w-5" />
