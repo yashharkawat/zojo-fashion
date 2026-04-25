@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import Razorpay from 'razorpay';
 import { env } from '../config/env';
+import { logger } from '../config/logger';
 import { UpstreamError } from './errors';
 
 export const razorpay = new Razorpay({
@@ -29,6 +30,7 @@ export async function createRazorpayOrder(params: {
       currency: order.currency,
     };
   } catch (err) {
+    logger.error({ err, params }, 'Razorpay createOrder failed');
     throw new UpstreamError('Razorpay order creation failed', { cause: String(err) });
   }
 }
