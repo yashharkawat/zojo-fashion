@@ -1,6 +1,5 @@
 import { Hero } from '@/components/home/Hero';
 import { FeaturedCollection } from '@/components/home/FeaturedCollection';
-import { InstagramFeed } from '@/components/home/InstagramFeed';
 import { fetchFeaturedDropsForHome } from '@/lib/server-products';
 
 export default async function HomePage() {
