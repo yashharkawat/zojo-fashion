@@ -148,6 +148,11 @@ export async function getByIdOrSlug(idOrSlug: string) {
         where: { isActive: true, deletedAt: null },
         orderBy: [{ size: 'asc' }, { color: 'asc' }],
       },
+      sizeChart: {
+        include: {
+          rows: { orderBy: { sortOrder: 'asc' } },
+        },
+      },
     },
   });
 

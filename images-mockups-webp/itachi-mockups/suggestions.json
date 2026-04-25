@@ -1,0 +1,247 @@
+{
+  "method": "pixel",
+  "folder": "itachi-mockups",
+  "use_ordering": true,
+  "items": [
+    {
+      "file": "99.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Olive Green",
+      "color_slug": "olive-green",
+      "color_conf": 0.949,
+      "sampled_rgb": [
+        45,
+        47,
+        47
+      ],
+      "pair_resolved": true
+    },
+    {
+      "file": "100.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Off White",
+      "color_slug": "off-white",
+      "color_conf": 0.941,
+      "sampled_rgb": [
+        237,
+        238,
+        239
+      ]
+    },
+    {
+      "file": "101.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Purple",
+      "color_slug": "purple",
+      "color_conf": 0.912,
+      "sampled_rgb": [
+        45,
+        47,
+        47
+      ]
+    },
+    {
+      "file": "102.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Black",
+      "color_slug": "black",
+      "color_conf": 0.931,
+      "sampled_rgb": [
+        29,
+        39,
+        47
+      ]
+    },
+    {
+      "file": "103.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Bottle Green",
+      "color_slug": "bottle-green",
+      "color_conf": 0.959,
+      "sampled_rgb": [
+        37,
+        73,
+        49
+      ]
+    },
+    {
+      "file": "104.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Royal Blue",
+      "color_slug": "royal-blue",
+      "color_conf": 0.974,
+      "sampled_rgb": [
+        45,
+        52,
+        94
+      ]
+    },
+    {
+      "file": "105.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Maroon",
+      "color_slug": "maroon",
+      "color_conf": 0.946,
+      "sampled_rgb": [
+        60,
+        29,
+        32
+      ]
+    },
+    {
+      "file": "106.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.954,
+      "sampled_rgb": [
+        39,
+        65,
+        68
+      ]
+    },
+    {
+      "file": "107.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Olive Green",
+      "color_slug": "olive-green",
+      "color_conf": 0.949,
+      "sampled_rgb": [
+        59,
+        58,
+        37
+      ],
+      "pair_resolved": true
+    },
+    {
+      "file": "108.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Off White",
+      "color_slug": "off-white",
+      "color_conf": 0.943,
+      "sampled_rgb": [
+        237,
+        239,
+        239
+      ]
+    },
+    {
+      "file": "109.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Purple",
+      "color_slug": "purple",
+      "color_conf": 0.918,
+      "sampled_rgb": [
+        44,
+        45,
+        45
+      ]
+    },
+    {
+      "file": "110.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Black",
+      "color_slug": "black",
+      "color_conf": 0.936,
+      "sampled_rgb": [
+        27,
+        37,
+        46
+      ]
+    },
+    {
+      "file": "111.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Bottle Green",
+      "color_slug": "bottle-green",
+      "color_conf": 0.956,
+      "sampled_rgb": [
+        35,
+        72,
+        48
+      ]
+    },
+    {
+      "file": "112.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Royal Blue",
+      "color_slug": "royal-blue",
+      "color_conf": 0.974,
+      "sampled_rgb": [
+        44,
+        51,
+        92
+      ]
+    },
+    {
+      "file": "113.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Maroon",
+      "color_slug": "maroon",
+      "color_conf": 0.947,
+      "sampled_rgb": [
+        58,
+        28,
+        31
+      ]
+    },
+    {
+      "file": "114.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.956,
+      "sampled_rgb": [
+        38,
+        63,
+        66
+      ]
+    },
+    {
+      "file": "115.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Olive Green",
+      "color_slug": "olive-green",
+      "color_conf": 0.949,
+      "sampled_rgb": [
+        57,
+        56,
+        35
+      ]
+    }
+  ]
+}

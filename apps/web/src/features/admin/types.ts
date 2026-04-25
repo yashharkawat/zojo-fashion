@@ -53,7 +53,9 @@ export interface AdminProduct {
   reviewCount: number;
   animeSeries: string | null;
   categorySlug: string;
+  defaultColor: string | null;
   images: Array<{ url: string; alt: string | null }>;
+  variants: Array<{ color: string; colorHex: string | null }>;
   createdAt: string;
   _count: { variants: number };
 }

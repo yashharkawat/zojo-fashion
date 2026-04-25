@@ -1,0 +1,259 @@
+{
+  "method": "pixel",
+  "folder": "naruto-mockups",
+  "use_ordering": true,
+  "items": [
+    {
+      "file": "99.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Bottle Green",
+      "color_slug": "bottle-green",
+      "color_conf": 0.959,
+      "sampled_rgb": [
+        37,
+        73,
+        49
+      ]
+    },
+    {
+      "file": "100.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.954,
+      "sampled_rgb": [
+        39,
+        65,
+        68
+      ]
+    },
+    {
+      "file": "101.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Mustard Yellow",
+      "color_slug": "mustard-yellow",
+      "color_conf": 0.981,
+      "sampled_rgb": [
+        172,
+        134,
+        44
+      ]
+    },
+    {
+      "file": "102.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Light Baby Pink",
+      "color_slug": "light-baby-pink",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        229,
+        198,
+        214
+      ]
+    },
+    {
+      "file": "103.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Lavender",
+      "color_slug": "lavender",
+      "color_conf": 0.992,
+      "sampled_rgb": [
+        207,
+        196,
+        229
+      ]
+    },
+    {
+      "file": "104.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Coral",
+      "color_slug": "coral",
+      "color_conf": 0.986,
+      "sampled_rgb": [
+        171,
+        90,
+        88
+      ]
+    },
+    {
+      "file": "105.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Mint",
+      "color_slug": "mint",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        166,
+        232,
+        222
+      ]
+    },
+    {
+      "file": "106.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Baby Blue",
+      "color_slug": "baby-blue",
+      "color_conf": 0.978,
+      "sampled_rgb": [
+        167,
+        215,
+        233
+      ]
+    },
+    {
+      "file": "107.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Off White",
+      "color_slug": "off-white",
+      "color_conf": 0.954,
+      "sampled_rgb": [
+        243,
+        239,
+        224
+      ]
+    },
+    {
+      "file": "108.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Bottle Green",
+      "color_slug": "bottle-green",
+      "color_conf": 0.956,
+      "sampled_rgb": [
+        35,
+        72,
+        48
+      ]
+    },
+    {
+      "file": "109.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.956,
+      "sampled_rgb": [
+        38,
+        63,
+        66
+      ]
+    },
+    {
+      "file": "110.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Mustard Yellow",
+      "color_slug": "mustard-yellow",
+      "color_conf": 0.98,
+      "sampled_rgb": [
+        171,
+        132,
+        42
+      ]
+    },
+    {
+      "file": "111.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Light Baby Pink",
+      "color_slug": "light-baby-pink",
+      "color_conf": 0.985,
+      "sampled_rgb": [
+        229,
+        197,
+        212
+      ]
+    },
+    {
+      "file": "112.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Lavender",
+      "color_slug": "lavender",
+      "color_conf": 0.986,
+      "sampled_rgb": [
+        205,
+        194,
+        229
+      ]
+    },
+    {
+      "file": "113.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Coral",
+      "color_slug": "coral",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        169,
+        88,
+        87
+      ]
+    },
+    {
+      "file": "114.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Mint",
+      "color_slug": "mint",
+      "color_conf": 0.986,
+      "sampled_rgb": [
+        164,
+        231,
+        220
+      ]
+    },
+    {
+      "file": "115.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Baby Blue",
+      "color_slug": "baby-blue",
+      "color_conf": 0.975,
+      "sampled_rgb": [
+        166,
+        214,
+        233
+      ]
+    },
+    {
+      "file": "116.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Off White",
+      "color_slug": "off-white",
+      "color_conf": 0.956,
+      "sampled_rgb": [
+        244,
+        239,
+        224
+      ]
+    }
+  ]
+}

@@ -11,6 +11,7 @@ const ADMIN_NAV = [
   { href: '/admin', label: 'Overview', exact: true as boolean },
   { href: '/admin/orders', label: 'Orders', exact: false },
   { href: '/admin/products', label: 'Products', exact: false },
+  { href: '/admin/products/upload', label: 'Quick Create', exact: false },
   { href: '/admin/analytics', label: 'Analytics', exact: false },
   { href: '/admin/settings', label: 'Settings', exact: false },
 ];

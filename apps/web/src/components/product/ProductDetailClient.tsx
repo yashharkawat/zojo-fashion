@@ -305,7 +305,11 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
         </motion.div>
       </div>
 
-      <SizeGuide open={sizeGuideOpen} onClose={() => setSizeGuideOpen(false)} />
+      <SizeGuide
+        open={sizeGuideOpen}
+        onClose={() => setSizeGuideOpen(false)}
+        rows={product.sizeChart?.rows}
+      />
     </>
   );
 }

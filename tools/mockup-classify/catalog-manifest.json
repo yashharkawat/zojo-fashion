@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "description": "Source of truth for OpenCLIP and the labeler. Keys are folder names under images-mockups-webp/.",
+  "colorPresets": {
+    "supplierAll": [
+      { "name": "White",            "hex": "#ffffff", "slug": "white" },
+      { "name": "Black",            "hex": "#151515", "slug": "black" },
+      { "name": "Navy Blue",        "hex": "#000b17", "slug": "navy-blue" },
+      { "name": "Grey Melange",     "hex": "#C3C3C3", "slug": "grey-melange" },
+      { "name": "Bottle Green",     "hex": "#083717", "slug": "bottle-green" },
+      { "name": "Royal Blue",       "hex": "#141c4f", "slug": "royal-blue" },
+      { "name": "Red",              "hex": "#900001", "slug": "red" },
+      { "name": "Maroon",           "hex": "#290005", "slug": "maroon" },
+      { "name": "Purple",           "hex": "#271033", "slug": "purple" },
+      { "name": "Golden Yellow",    "hex": "#ffa200", "slug": "golden-yellow" },
+      { "name": "Petrol Blue",      "hex": "#0a2b30", "slug": "petrol-blue" },
+      { "name": "Olive Green",      "hex": "#26260a", "slug": "olive-green" },
+      { "name": "Mustard Yellow",   "hex": "#B6840D", "slug": "mustard-yellow" },
+      { "name": "Light Baby Pink",  "hex": "#ffd4e9", "slug": "light-baby-pink" },
+      { "name": "Lavender",         "hex": "#e0d2fc", "slug": "lavender" },
+      { "name": "Coral",            "hex": "#b34946", "slug": "coral" },
+      { "name": "Mint",             "hex": "#adfff0", "slug": "mint" },
+      { "name": "Baby Blue",        "hex": "#abebff", "slug": "baby-blue" },
+      { "name": "Off White",        "hex": "#fffae7", "slug": "off-white" }
+    ]
+  },
+  "productFolders": {
+    "naruto-mockups": {
+      "productSlug": "sage-mode-oversized-tee",
+      "colorPreset": "supplierAll",
+      "imageCount": 18
+    },
+    "eren-mockups": {
+      "productSlug": "scout-regiment-oversized-tee",
+      "colorPreset": "supplierAll",
+      "imageCount": 14
+    },
+    "zoro-mockups": {
+      "productSlug": "straw-hat-crew-tee",
+      "colorPreset": "supplierAll",
+      "imageCount": 12
+    },
+    "gojo-mockup": {
+      "productSlug": "sukuna-king-of-curses-tee",
+      "colorPreset": "supplierAll",
+      "imageCount": 16
+    },
+    "inosuke-mockups": {
+      "productSlug": "demon-slayer-corps-tee",
+      "colorPreset": "supplierAll",
+      "imageCount": 14
+    },
+    "buddha-mockups": {
+      "productSlug": "saiyan-beyond-limits-tee",
+      "colorPreset": "supplierAll",
+      "imageCount": 16
+    },
+    "itachi-mockups": {
+      "productSlug": "uchiha-clan-limited-tee",
+      "colorPreset": "supplierAll",
+      "imageCount": 17,
+      "note": "Odd number of images — one extra file, review in labeler"
+    },
+    "third-eye-mockups": {
+      "productSlug": "third-eye-oversized-tee",
+      "colorPreset": "supplierAll",
+      "imageCount": 16
+    }
+  }
+}

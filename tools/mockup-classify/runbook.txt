@@ -1,0 +1,26 @@
+Phase B — OpenCLIP (from repo root)
+  python3 -m venv tools/mockup-classify/.venv
+  source tools/mockup-classify/.venv/bin/activate
+  pip install -r tools/mockup-classify/requirements.txt
+
+  # CLIP face detection (may classify all as "front" for graphic-heavy prints):
+  python3 tools/mockup-classify/clip_suggest.py buddha-mockups
+
+  # Ordering mode (recommended): first N//2 files = backs, rest = fronts
+  python3 tools/mockup-classify/clip_suggest.py buddha-mockups --use-ordering
+  # writes images-mockups-webp/buddha-mockups/suggestions.json
+
+Phase C — Labeler
+  python3 tools/mockup-classify/serve.py
+  # open http://127.0.0.1:8765/  →  Load folder  →  review  →
+  #   “Write into folder (Chrome)…” and choose that product directory, or
+  #   Download apply JSON, then:
+  #   python3 tools/mockup-classify/apply_from_export.py buddha-mockups-apply.json
+
+Catalog in Next.js
+  # from repo root, once images use {slug}/front.webp & back.webp:
+  ln -sf ../../images-mockups-webp apps/web/public/catalog
+  # (remove existing public/catalog if it is a real directory, not a symlink)
+  cd apps/api && npm run seed:catalog
+
+After labeling, you may delete leftover numbered .webp in the product folder to avoid duplicate assets; keep only per-color subfolders.

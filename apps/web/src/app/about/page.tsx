@@ -1,21 +1,37 @@
 import type { Metadata } from 'next';
 import { StaticInfoPage } from '@/components/layout/StaticInfoPage';
+import { fetchSiteSettings } from '@/lib/server-settings';
 
 export const metadata: Metadata = {
   title: 'About',
   description: 'ZOJO — anime-inspired streetwear, printed in India.',
 };
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const social = await fetchSiteSettings();
+
   return (
     <StaticInfoPage title="About ZOJO">
       <p>
-        ZOJO is a premium anime streetwear label for people who want their fandom on the outside.
-        We design and print in India, with quality and fit you can live in.
+        ZOJO is an anime streetwear label born in India, built for the ones who felt every arc,
+        stayed up for every episode, and carry their fandom not as nostalgia — but as identity.
       </p>
       <p>
-        This page is a placeholder; product stories, the team, and lookbooks will show up here as
-        the site grows.
+        We don&apos;t make merch. We make wearable art. Every design is crafted to hit as hard as
+        the moment that inspired it — dark, cinematic, and built to last. Heavyweight 240 GSM
+        cotton. Fits that actually drape right. Printed and shipped from India.
+      </p>
+      <p>
+        Zojo is new. The lookbooks, the drops, the collaborations — they&apos;re coming. But the
+        foundation is already here: uncompromising quality, designs that mean something, and a
+        community that gets it.
+      </p>
+      <p>
+        Follow the journey on{' '}
+        <a href={social.instagramUrl} target="_blank" rel="noopener noreferrer">
+          Instagram
+        </a>
+        .
       </p>
     </StaticInfoPage>
   );

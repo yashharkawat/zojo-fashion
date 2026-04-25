@@ -1,0 +1,231 @@
+{
+  "method": "pixel",
+  "folder": "third-eye-mockups",
+  "use_ordering": true,
+  "items": [
+    {
+      "file": "126.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Black",
+      "color_slug": "black",
+      "color_conf": 0.931,
+      "sampled_rgb": [
+        29,
+        39,
+        47
+      ]
+    },
+    {
+      "file": "127.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Grey Melange",
+      "color_slug": "grey-melange",
+      "color_conf": 0.952,
+      "sampled_rgb": [
+        186,
+        187,
+        187
+      ]
+    },
+    {
+      "file": "128.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Purple",
+      "color_slug": "purple",
+      "color_conf": 0.96,
+      "sampled_rgb": [
+        60,
+        43,
+        69
+      ]
+    },
+    {
+      "file": "129.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.954,
+      "sampled_rgb": [
+        39,
+        65,
+        68
+      ]
+    },
+    {
+      "file": "130.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Olive Green",
+      "color_slug": "olive-green",
+      "color_conf": 0.947,
+      "sampled_rgb": [
+        59,
+        58,
+        37
+      ]
+    },
+    {
+      "file": "131.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Coral",
+      "color_slug": "coral",
+      "color_conf": 0.986,
+      "sampled_rgb": [
+        171,
+        90,
+        88
+      ]
+    },
+    {
+      "file": "132.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Mint",
+      "color_slug": "mint",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        166,
+        232,
+        222
+      ]
+    },
+    {
+      "file": "133.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Baby Blue",
+      "color_slug": "baby-blue",
+      "color_conf": 0.978,
+      "sampled_rgb": [
+        167,
+        215,
+        233
+      ]
+    },
+    {
+      "file": "134.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Black",
+      "color_slug": "black",
+      "color_conf": 0.936,
+      "sampled_rgb": [
+        27,
+        37,
+        46
+      ]
+    },
+    {
+      "file": "135.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Grey Melange",
+      "color_slug": "grey-melange",
+      "color_conf": 0.946,
+      "sampled_rgb": [
+        185,
+        186,
+        186
+      ]
+    },
+    {
+      "file": "136.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Purple",
+      "color_slug": "purple",
+      "color_conf": 0.946,
+      "sampled_rgb": [
+        58,
+        42,
+        68
+      ]
+    },
+    {
+      "file": "137.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.956,
+      "sampled_rgb": [
+        38,
+        63,
+        66
+      ]
+    },
+    {
+      "file": "138.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Olive Green",
+      "color_slug": "olive-green",
+      "color_conf": 0.964,
+      "sampled_rgb": [
+        57,
+        57,
+        35
+      ]
+    },
+    {
+      "file": "139.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Coral",
+      "color_slug": "coral",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        169,
+        88,
+        87
+      ]
+    },
+    {
+      "file": "140.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Mint",
+      "color_slug": "mint",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        164,
+        231,
+        221
+      ]
+    },
+    {
+      "file": "141.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Baby Blue",
+      "color_slug": "baby-blue",
+      "color_conf": 0.978,
+      "sampled_rgb": [
+        166,
+        214,
+        232
+      ]
+    }
+  ]
+}

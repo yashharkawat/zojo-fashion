@@ -24,9 +24,18 @@ const prisma = new PrismaClient();
 
 const ARGON_OPTS: argon2.Options = { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
-// Storefront mockups: served by Next as `/catalog/...` (symlink `apps/web/public/catalog` → `design-mockups-hd`).
+// Storefront mockups: served by Next as `/catalog/{mockFolder}/{color-slug}/front.webp` (symlink `public/catalog` → repo `images-mockups-webp`).
 function catalogPath(folder: string, file: string): string {
   return `/catalog/${folder}/${file}`;
+}
+
+function colorNameToSlug(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'color'
+  );
 }
 
 // ─── Placeholder (hero/banners) ─────────────────────────
@@ -39,17 +48,54 @@ function heroImage(text: string): string {
 
 const STORE_BASE = 79900;
 const MRP = 99900;
-/** 7 colorways: each has front + back (images.length / 2 = color count). */
-const SHIRT_COLORS: { name: string; hex: string }[] = [
-  { name: 'Ice Blue', hex: '#7eb6d9' },
-  { name: 'Off White', hex: '#e8e4dc' },
-  { name: 'Black', hex: '#0a0a0a' },
-  { name: 'Charcoal', hex: '#3d3d3d' },
-  { name: 'Navy', hex: '#1a2744' },
-  { name: 'Forest', hex: '#2d4a3e' },
-  { name: 'Dusty Rose', hex: '#c4a4a4' },
+
+/**
+ * Supplier color palette — names and hex values must exactly match what is
+ * written into ProductImage.variantColor by clip_suggest.py + update:images.
+ * Update `colors` per product after finishing the labeling pass.
+ */
+const ALL_COLORS: { name: string; hex: string }[] = [
+  { name: 'White',           hex: '#ffffff' },
+  { name: 'Black',           hex: '#151515' },
+  { name: 'Navy Blue',       hex: '#000b17' },
+  { name: 'Grey Melange',    hex: '#C3C3C3' },
+  { name: 'Bottle Green',    hex: '#083717' },
+  { name: 'Royal Blue',      hex: '#141c4f' },
+  { name: 'Red',             hex: '#900001' },
+  { name: 'Maroon',          hex: '#290005' },
+  { name: 'Purple',          hex: '#271033' },
+  { name: 'Golden Yellow',   hex: '#ffa200' },
+  { name: 'Petrol Blue',     hex: '#0a2b30' },
+  { name: 'Olive Green',     hex: '#26260a' },
+  { name: 'Mustard Yellow',  hex: '#B6840D' },
+  { name: 'Light Baby Pink', hex: '#ffd4e9' },
+  { name: 'Lavender',        hex: '#e0d2fc' },
+  { name: 'Coral',           hex: '#b34946' },
+  { name: 'Mint',            hex: '#adfff0' },
+  { name: 'Baby Blue',       hex: '#abebff' },
+  { name: 'Off White',       hex: '#fffae7' },
 ];
-const SIX = SHIRT_COLORS.slice(0, 6);
+
+const colorByName = (name: string) => ALL_COLORS.find((c) => c.name === name)!;
+
+/**
+ * Per-product color subsets — set these to match the colors in each product's
+ * suggestions.json after the labeling pass, then run `npm run seed:catalog`.
+ */
+// Per-product colors — derived from pixel_suggest.py classification output.
+// Order must match the suggestions.json pair order so update:images stays in sync.
+const COLORS = {
+  naruto:    ['Bottle Green','Petrol Blue','Mustard Yellow','Light Baby Pink','Lavender','Coral','Mint','Baby Blue','Off White'],
+  eren:      ['Petrol Blue','Light Baby Pink','Lavender','Coral','Mint','Baby Blue','Off White'],
+  zoro:      ['Bottle Green','Royal Blue','Purple','Petrol Blue','Olive Green','Coral'],
+  gojo:      ['Purple','Grey Melange','Light Baby Pink','Lavender','Coral','Mint','Baby Blue','Off White'],
+  inosuke:   ['Grey Melange','Bottle Green','Petrol Blue','Lavender','Coral','Mint','Baby Blue'],
+  buddha:    ['Royal Blue','Purple','Petrol Blue','Light Baby Pink','Lavender','Coral','Mint','Baby Blue'],
+  itachi:    ['Olive Green','Off White','Purple','Black','Bottle Green','Royal Blue','Maroon','Petrol Blue'],
+  thirdeye:  ['Black','Grey Melange','Purple','Petrol Blue','Olive Green','Coral','Mint','Baby Blue'],
+} satisfies Record<string, string[]>;
+
+const colors = (key: keyof typeof COLORS) => COLORS[key].map(colorByName);
 
 interface ProductSeed {
   slug: string;
@@ -62,8 +108,9 @@ interface ProductSeed {
   tags: string[];
   material: string;
   isFeatured: boolean;
-  /** e.g. `100` → pairs 100+101, 102+103 … in `mockFolder` */
+  /** Catalog images live at `/catalog/{mockFolder}/{colorSlug}/front|back.webp` (see `buildImageRows`). */
   mockFolder: string;
+  /** Legacy: unused; numeric filenames replaced by per-color subfolders. */
   imageStart: number;
   colors: { name: string; hex: string }[];
   defaultColor: string;
@@ -83,40 +130,40 @@ const PRODUCTS: ProductSeed[] = [
     isFeatured: true,
     mockFolder: 'naruto-mockups',
     imageStart: 100,
-    colors: SHIRT_COLORS,
-    defaultColor: 'Ice Blue',
+    colors: colors('naruto'),
+    defaultColor: 'Bottle Green',
   },
   {
-    slug: 'scout-regiment-hoodie',
-    title: 'Scout Regiment Hoodie',
-    description: 'Wings of Freedom embroidered on the back. Heavy 350 GSM French terry. Kangaroo pocket. Built for scouts who venture beyond.',
+    slug: 'scout-regiment-oversized-tee',
+    title: 'Scout Regiment Oversized Tee',
+    description: 'Wings of Freedom on the back. Premium 240 GSM combed cotton, oversized drop-shoulder cut. Built for scouts who venture beyond.',
     categorySlug: 'oversized',
     animeSeries: 'AOT',
     basePrice: STORE_BASE,
     compareAtPrice: MRP,
-    tags: ['hoodie', 'anime', 'aot', 'premium', 'winter'],
-    material: '80% cotton, 20% polyester, 350 GSM French terry.',
+    tags: ['oversized', 'anime', 'aot', 'premium'],
+    material: '100% combed cotton, 240 GSM bio-washed.',
     isFeatured: true,
     mockFolder: 'eren-mockups',
     imageStart: 100,
-    colors: SHIRT_COLORS,
-    defaultColor: 'Navy',
+    colors: colors('eren'),
+    defaultColor: 'Petrol Blue',
   },
   {
     slug: 'straw-hat-crew-tee',
     title: 'Straw Hat Crew Tee',
-    description: 'The whole crew in minimalist line art. Regular fit, soft hand feel. For the captain in every friend group.',
-    categorySlug: 'regular',
+    description: 'The whole crew in minimalist line art. Oversized fit, soft hand feel. For the captain in every friend group.',
+    categorySlug: 'oversized',
     animeSeries: 'One Piece',
     basePrice: STORE_BASE,
     compareAtPrice: MRP,
-    tags: ['regular', 'anime', 'one-piece'],
-    material: '100% combed cotton, 200 GSM.',
+    tags: ['oversized', 'anime', 'one-piece'],
+    material: '100% combed cotton, 240 GSM bio-washed.',
     isFeatured: true,
-    mockFolder: 'zoro-king-of-hell-mockups',
+    mockFolder: 'zoro-mockups',
     imageStart: 100,
-    colors: SIX,
-    defaultColor: 'Off White',
+    colors: colors('zoro'),
+    defaultColor: 'Bottle Green',
   },
   {
     slug: 'sukuna-king-of-curses-tee',
@@ -129,10 +176,10 @@ const PRODUCTS: ProductSeed[] = [
     tags: ['oversized', 'anime', 'jujutsu-kaisen'],
     material: '100% combed cotton, 240 GSM bio-washed.',
     isFeatured: true,
-    mockFolder: 'gojo-mockups',
+    mockFolder: 'gojo-mockup',
     imageStart: 100,
-    colors: SHIRT_COLORS,
-    defaultColor: 'Dusty Rose',
+    colors: colors('gojo'),
+    defaultColor: 'Purple',
   },
   {
     slug: 'demon-slayer-corps-tee',
@@ -147,55 +194,55 @@ const PRODUCTS: ProductSeed[] = [
     isFeatured: true,
     mockFolder: 'inosuke-mockups',
     imageStart: 100,
-    colors: SHIRT_COLORS,
-    defaultColor: 'Forest',
+    colors: colors('inosuke'),
+    defaultColor: 'Bottle Green',
   },
   {
     slug: 'saiyan-beyond-limits-tee',
     title: 'Saiyan Beyond Limits Tee',
-    description: 'Ultra Instinct Goku on the front. Premium DTG print at 1440 DPI. Regular fit, soft to touch.',
-    categorySlug: 'regular',
+    description: 'Ultra Instinct Goku on the front. Premium DTG print at 1440 DPI. Oversized fit, soft to touch.',
+    categorySlug: 'oversized',
     animeSeries: 'Dragon Ball',
     basePrice: STORE_BASE,
     compareAtPrice: MRP,
-    tags: ['regular', 'anime', 'dragon-ball'],
-    material: '100% combed cotton, 200 GSM.',
+    tags: ['oversized', 'anime', 'dragon-ball'],
+    material: '100% combed cotton, 240 GSM bio-washed.',
     isFeatured: true,
-    mockFolder: 'buddha-designs',
+    mockFolder: 'buddha-mockups',
     imageStart: 110,
-    colors: SHIRT_COLORS,
-    defaultColor: 'Navy',
+    colors: colors('buddha'),
+    defaultColor: 'Royal Blue',
   },
   {
     slug: 'uchiha-clan-limited-tee',
     title: 'Uchiha Clan Limited Tee',
     description: 'Sharingan eye on the front, Uchiha crest on the back. Limited to 100 pieces per size. Once gone, gone.',
-    categorySlug: 'limited-edition',
+    categorySlug: 'oversized',
     animeSeries: 'Naruto',
     basePrice: STORE_BASE,
     compareAtPrice: MRP,
-    tags: ['limited', 'anime', 'naruto', 'collector'],
+    tags: ['oversized', 'anime', 'naruto', 'collector'],
     material: '100% combed cotton, 260 GSM heavyweight.',
-    isFeatured: false,
-    mockFolder: 'madara-itachi-mockup',
+    isFeatured: true,
+    mockFolder: 'itachi-mockups',
     imageStart: 100,
-    colors: SHIRT_COLORS,
-    defaultColor: 'Charcoal',
+    colors: colors('itachi'),
+    defaultColor: 'Olive Green',
   },
   {
-    slug: 'titan-shifter-oversized-tee',
-    title: 'Titan Shifter Oversized Tee',
-    description: 'Eren\'s titan form in monochrome ink wash style. Oversized, raw hem. For those who keep moving forward.',
+    slug: 'third-eye-oversized-tee',
+    title: 'Third Eye Oversized Tee',
+    description: 'Ancient symbolism meets modern streetwear. The all-seeing eye graphic, front and back. Premium 240 GSM oversized fit.',
     categorySlug: 'oversized',
-    animeSeries: 'AOT',
+    animeSeries: 'Original',
     basePrice: STORE_BASE,
     compareAtPrice: MRP,
-    tags: ['oversized', 'anime', 'aot'],
+    tags: ['oversized', 'anime', 'original', 'spiritual'],
     material: '100% combed cotton, 240 GSM bio-washed.',
-    isFeatured: false,
-    mockFolder: 'eren-mockups',
-    imageStart: 100,
-    colors: SHIRT_COLORS,
+    isFeatured: true,
+    mockFolder: 'third-eye-mockups',
+    imageStart: 126,
+    colors: colors('thirdeye'),
     defaultColor: 'Black',
   },
 ];
@@ -207,6 +254,27 @@ const BANNERS = [
   { title: 'Pan-India delivery', subtitle: 'Flat ₹50 on every order.', ctaText: 'Browse', ctaUrl: '/products', position: 'STRIP' },
   { title: 'Limited Edition', subtitle: 'Once sold out, gone forever.', ctaText: 'View Drops', ctaUrl: '/products?category=limited-edition', position: 'SECONDARY' },
 ];
+
+const OVERSIZED_SIZE_CHART = [
+  { size: 'S',   chest: '42', length: '27', sleeve: '9.0',  sortOrder: 0 },
+  { size: 'M',   chest: '44', length: '28', sleeve: '9.5',  sortOrder: 1 },
+  { size: 'L',   chest: '46', length: '29', sleeve: '10.0', sortOrder: 2 },
+  { size: 'XL',  chest: '48', length: '30', sleeve: '10.5', sortOrder: 3 },
+  { size: 'XXL', chest: '50', length: '31', sleeve: '11.0', sortOrder: 4 },
+];
+
+async function upsertSizeCharts(): Promise<{ oversized: string }> {
+  const chart = await prisma.sizeChart.upsert({
+    where: { name: 'oversized' },
+    create: {
+      name: 'oversized',
+      rows: { create: OVERSIZED_SIZE_CHART },
+    },
+    update: {},
+    select: { id: true },
+  });
+  return { oversized: chart.id };
+}
 
 async function upsertSiteSettings() {
   await prisma.siteSettings.upsert({
@@ -224,9 +292,9 @@ async function upsertSiteSettings() {
 }
 
 /**
- * On disk / catalog: **first N files are all backs (one per color)**, then **N files are all fronts**.
- * sortOrder: backs use `0 … N-1`, fronts use `N … 2N-1`. For color `ci`, back = index `ci`, front = `N + ci`
- * (same “distance” in each half, as you described: back at `ci+1` in 1-based first half, front in second half).
+ * On disk / catalog: under each `mockFolder`, **one subfolder per color** with `back.webp` and `front.webp`.
+ * DB order unchanged: first N rows = all backs (one per color in order), next N = all fronts.
+ * sortOrder: backs `0 … N-1`, fronts `N … 2N-1`.
  */
 function buildImageRows(p: ProductSeed) {
   const colors = p.colors;
@@ -241,8 +309,9 @@ function buildImageRows(p: ProductSeed) {
   }[] = [];
   for (let ci = 0; ci < half; ci++) {
     const c = colors[ci]!;
+    const slug = colorNameToSlug(c.name);
     out.push({
-      url: catalogPath(p.mockFolder, `${p.imageStart + ci}.jpg`),
+      url: catalogPath(p.mockFolder, `${slug}/back.webp`),
       publicId: `local/${p.slug}-c${ci}-back`,
       alt: `${p.title} — ${c.name}, back`,
       sortOrder: ci,
@@ -252,8 +321,9 @@ function buildImageRows(p: ProductSeed) {
   }
   for (let ci = 0; ci < half; ci++) {
     const c = colors[ci]!;
+    const slug = colorNameToSlug(c.name);
     out.push({
-      url: catalogPath(p.mockFolder, `${p.imageStart + half + ci}.jpg`),
+      url: catalogPath(p.mockFolder, `${slug}/front.webp`),
       publicId: `local/${p.slug}-c${ci}-front`,
       alt: `${p.title} — ${c.name}, front`,
       sortOrder: half + ci,
@@ -264,7 +334,7 @@ function buildImageRows(p: ProductSeed) {
   return out;
 }
 
-async function createProductRecord(p: ProductSeed): Promise<void> {
+async function createProductRecord(p: ProductSeed, sizeChartId?: string): Promise<void> {
   const imageRows = buildImageRows(p);
   const colorList = p.colors;
   const variantRows = SIZES.flatMap((size, si) =>
@@ -297,6 +367,7 @@ async function createProductRecord(p: ProductSeed): Promise<void> {
       isFeatured: p.isFeatured,
       metaTitle: p.title,
       metaDescription: p.description.slice(0, 155),
+      ...(sizeChartId ? { sizeChartId } : {}),
       images: { create: imageRows },
       variants: { create: variantRows },
     },
@@ -305,15 +376,45 @@ async function createProductRecord(p: ProductSeed): Promise<void> {
   console.log(`  Product: ${p.title} (${colorList.length} colorways × ${SIZES.length} sizes)`);
 }
 
-/** Re-create demo products (by slug) without touching users. Fails if orders reference a variant. */
-async function seedCatalogOnly() {
+async function deleteProductBySlug(slug: string) {
+  const existing = await prisma.product.findUnique({
+    where: { slug },
+    select: { id: true, variants: { select: { id: true } } },
+  });
+  if (!existing) return;
+  const variantIds = existing.variants.map((v) => v.id);
+  if (variantIds.length > 0) {
+    const deleted = await prisma.orderItem.deleteMany({ where: { variantId: { in: variantIds } } });
+    if (deleted.count > 0) {
+      console.log(`  [warn] Deleted ${deleted.count} order item(s) for ${slug}.`);
+      await prisma.order.deleteMany({ where: { items: { none: {} } } });
+    }
+  }
+  await prisma.product.deleteMany({ where: { id: existing.id } });
+}
+
+/** Re-create demo products (by slug). Clears dependent OrderItems first so FK constraints don't block. */
+async function seedCatalogOnly(sizeChartIds: { oversized: string }) {
   console.log('[catalog] Recreating products...\n');
+
+  // Remove any stale products not in the current PRODUCTS list
+  const currentSlugs = new Set(PRODUCTS.map((p) => p.slug));
+  const allSlugs = await prisma.product.findMany({ select: { slug: true } });
+  for (const { slug } of allSlugs) {
+    if (!currentSlugs.has(slug)) {
+      await deleteProductBySlug(slug);
+      console.log(`  Removed stale product: ${slug}`);
+    }
+  }
+
   for (const p of PRODUCTS) {
-    const removed = await prisma.product.deleteMany({ where: { slug: p.slug } });
-    if (removed.count > 0) {
+    const exists = await prisma.product.findUnique({ where: { slug: p.slug }, select: { id: true } });
+    if (exists) {
+      await deleteProductBySlug(p.slug);
       console.log(`  Replaced: ${p.slug}`);
     }
-    await createProductRecord(p);
+    const chartId = p.categorySlug === 'oversized' ? sizeChartIds.oversized : undefined;
+    await createProductRecord(p, chartId);
   }
   console.log('\n✅ Catalog refresh complete. Users and other data were not changed.\n');
 }
@@ -327,8 +428,11 @@ async function main() {
   await upsertSiteSettings();
   console.log('[0/4] Site settings (Instagram / YouTube) updated.\n');
 
+  const sizeChartIds = await upsertSizeCharts();
+  console.log('[0/4] Size charts upserted.\n');
+
   if (onlyCatalog) {
-    await seedCatalogOnly();
+    await seedCatalogOnly(sizeChartIds);
     return;
   }
 
@@ -377,7 +481,8 @@ async function main() {
   // 2. Products + variants + images
   console.log('[2/4] Creating products...');
   for (const p of PRODUCTS) {
-    await createProductRecord(p);
+    const chartId = p.categorySlug === 'oversized' ? sizeChartIds.oversized : undefined;
+    await createProductRecord(p, chartId);
   }
 
   // 3. Homepage banners

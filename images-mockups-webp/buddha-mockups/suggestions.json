@@ -1,0 +1,231 @@
+{
+  "method": "pixel",
+  "folder": "buddha-mockups",
+  "use_ordering": true,
+  "items": [
+    {
+      "file": "110.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Royal Blue",
+      "color_slug": "royal-blue",
+      "color_conf": 0.972,
+      "sampled_rgb": [
+        46,
+        52,
+        94
+      ]
+    },
+    {
+      "file": "111.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Purple",
+      "color_slug": "purple",
+      "color_conf": 0.96,
+      "sampled_rgb": [
+        60,
+        43,
+        69
+      ]
+    },
+    {
+      "file": "112.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.954,
+      "sampled_rgb": [
+        39,
+        65,
+        68
+      ]
+    },
+    {
+      "file": "113.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Light Baby Pink",
+      "color_slug": "light-baby-pink",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        229,
+        198,
+        214
+      ]
+    },
+    {
+      "file": "114.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Lavender",
+      "color_slug": "lavender",
+      "color_conf": 0.992,
+      "sampled_rgb": [
+        207,
+        196,
+        229
+      ]
+    },
+    {
+      "file": "115.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Coral",
+      "color_slug": "coral",
+      "color_conf": 0.986,
+      "sampled_rgb": [
+        171,
+        90,
+        88
+      ]
+    },
+    {
+      "file": "116.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Mint",
+      "color_slug": "mint",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        166,
+        232,
+        222
+      ]
+    },
+    {
+      "file": "117.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Baby Blue",
+      "color_slug": "baby-blue",
+      "color_conf": 0.978,
+      "sampled_rgb": [
+        167,
+        215,
+        233
+      ]
+    },
+    {
+      "file": "118.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Royal Blue",
+      "color_slug": "royal-blue",
+      "color_conf": 0.974,
+      "sampled_rgb": [
+        44,
+        51,
+        92
+      ]
+    },
+    {
+      "file": "119.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Purple",
+      "color_slug": "purple",
+      "color_conf": 0.946,
+      "sampled_rgb": [
+        58,
+        42,
+        68
+      ]
+    },
+    {
+      "file": "120.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.956,
+      "sampled_rgb": [
+        38,
+        63,
+        66
+      ]
+    },
+    {
+      "file": "121.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Light Baby Pink",
+      "color_slug": "light-baby-pink",
+      "color_conf": 0.985,
+      "sampled_rgb": [
+        229,
+        197,
+        212
+      ]
+    },
+    {
+      "file": "122.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Lavender",
+      "color_slug": "lavender",
+      "color_conf": 0.989,
+      "sampled_rgb": [
+        206,
+        194,
+        229
+      ]
+    },
+    {
+      "file": "123.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Coral",
+      "color_slug": "coral",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        169,
+        88,
+        87
+      ]
+    },
+    {
+      "file": "124.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Mint",
+      "color_slug": "mint",
+      "color_conf": 0.986,
+      "sampled_rgb": [
+        164,
+        231,
+        220
+      ]
+    },
+    {
+      "file": "125.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Baby Blue",
+      "color_slug": "baby-blue",
+      "color_conf": 0.978,
+      "sampled_rgb": [
+        166,
+        214,
+        232
+      ]
+    }
+  ]
+}

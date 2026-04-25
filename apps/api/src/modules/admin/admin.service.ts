@@ -1,14 +1,53 @@
 import { OrderStatus, PaymentStatus, ShipmentStatus, type Prisma } from '@prisma/client';
+import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../../config/prisma';
 import { logger } from '../../config/logger';
 import { refundPayment } from '../../lib/razorpay';
 import { ConflictError, NotFoundError } from '../../lib/errors';
+import { detectPairs } from '../../lib/colorDetect';
+import { colorNameToSlug } from '../../lib/colorPalette';
 import type {
   AdminListOrdersQuery,
   AdminUpdateOrderStatusBody,
   AdminAnalyticsQuery,
   AdminListProductsQuery,
+  QuickCreateProductInput,
 } from './admin.schema';
+
+// ── Cloudinary singleton config ───────────────────────────────────────────────
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config(true);
+} else {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+}
+
+async function uploadBufferToCloudinary(
+  buffer: Buffer,
+  publicId: string,
+): Promise<{ url: string; publicId: string }> {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        public_id: publicId,
+        folder: 'zojo-catalog',
+        format: 'webp',
+        quality: 'auto',
+        overwrite: true,
+        resource_type: 'image',
+      },
+      (err, result) => {
+        if (err || !result) return reject(err ?? new Error('Cloudinary upload failed'));
+        resolve({ url: result.secure_url, publicId: result.public_id });
+      },
+    );
+    uploadStream.end(buffer);
+  });
+}
 
 // Allowed transitions. Admin has broader powers than users but still bounded.
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -245,6 +284,138 @@ export async function markManualReview(_adminUserId: string, orderId: string, no
   return { ok: true };
 }
 
+export async function setDefaultColor(productId: string, color: string) {
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) throw new NotFoundError('Product not found');
+
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({ where: { id: productId }, data: { defaultColor: color } });
+    // Reset isPrimary, then flag the front image of the chosen color.
+    await tx.productImage.updateMany({ where: { productId }, data: { isPrimary: false } });
+    await tx.productImage.updateMany({
+      where: { productId, variantColor: color, url: { endsWith: '/front.webp' } },
+      data: { isPrimary: true },
+    });
+  });
+
+  return { ok: true, defaultColor: color };
+}
+
+export async function quickCreateProduct(
+  input: QuickCreateProductInput,
+  files: Array<{ buffer: Buffer; originalname: string }>,
+) {
+  if (files.length < 2 || files.length % 2 !== 0) {
+    throw new ConflictError('Upload an even number of webp files (one back + one front per color).');
+  }
+
+  // 1. Detect color pairs from uploaded images
+  const rawFiles = files.map((f) => ({ buffer: f.buffer, name: f.originalname }));
+  const pairs = await detectPairs(rawFiles);
+
+  if (pairs.length === 0) {
+    throw new ConflictError('Could not detect any color pairs from the uploaded files.');
+  }
+
+  const slug = input.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+  // Ensure unique slug
+  const existing = await prisma.product.findUnique({ where: { slug }, select: { id: true } });
+  const finalSlug = existing ? `${slug}-${Date.now()}` : slug;
+  const defaultColor = pairs[0]!.color.name;
+
+  // 2. Upload to Cloudinary
+  const imageRows: Array<{
+    url: string;
+    publicId: string;
+    alt: string;
+    sortOrder: number;
+    isPrimary: boolean;
+    variantColor: string;
+  }> = [];
+
+  for (let i = 0; i < pairs.length; i++) {
+    const pair = pairs[i]!;
+    const colorSlug = colorNameToSlug(pair.color.name);
+    const pfx = `${finalSlug}/${colorSlug}`;
+
+    const [back, front] = await Promise.all([
+      uploadBufferToCloudinary(pair.backBuffer, `${pfx}/back`),
+      uploadBufferToCloudinary(pair.frontBuffer, `${pfx}/front`),
+    ]);
+
+    imageRows.push(
+      {
+        url: back.url,
+        publicId: back.publicId,
+        alt: `${input.title} — ${pair.color.name} back`,
+        sortOrder: i * 2,
+        isPrimary: false,
+        variantColor: pair.color.name,
+      },
+      {
+        url: front.url,
+        publicId: front.publicId,
+        alt: `${input.title} — ${pair.color.name} front`,
+        sortOrder: i * 2 + 1,
+        isPrimary: pair.color.name === defaultColor,
+        variantColor: pair.color.name,
+      },
+    );
+  }
+
+  // 3. Get size chart for category
+  const sizeChart = await prisma.sizeChart.findUnique({ where: { name: input.categorySlug } });
+  const SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
+
+  const variantRows = SIZES.flatMap((size, si) =>
+    pairs.map((pair, ci) => ({
+      sku: `ZJ-${finalSlug.replace(/-/g, '').slice(0, 10).toUpperCase()}-C${ci}-${size}`,
+      size,
+      color: pair.color.name,
+      colorHex: pair.color.hex,
+      price: input.basePrice,
+      stock: si === SIZES.length - 1 ? 3 : 50,
+      isActive: true,
+    })),
+  );
+
+  // 4. Create product
+  const product = await prisma.product.create({
+    data: {
+      slug: finalSlug,
+      title: input.title,
+      description: input.description,
+      shortDescription: input.description.slice(0, 100) + '...',
+      categorySlug: input.categorySlug,
+      basePrice: input.basePrice,
+      compareAtPrice: input.compareAtPrice ?? null,
+      defaultColor,
+      gender: 'MEN',
+      animeSeries: input.animeSeries ?? null,
+      tags: input.tags ?? [],
+      material: input.material ?? null,
+      isActive: true,
+      isFeatured: true,
+      metaTitle: input.title,
+      metaDescription: input.description.slice(0, 155),
+      ...(sizeChart ? { sizeChartId: sizeChart.id } : {}),
+      images: { create: imageRows },
+      variants: { create: variantRows },
+    },
+    include: {
+      images: true,
+      variants: { select: { id: true, sku: true, color: true, size: true } },
+    },
+  });
+
+  logger.info({ productId: product.id, slug: finalSlug, colors: pairs.length }, 'Quick-created product');
+  return product;
+}
+
 export async function listProducts(q: AdminListProductsQuery) {
   const where: Prisma.ProductWhereInput = {};
   if (q.isActive !== undefined) where.isActive = q.isActive;
@@ -266,6 +437,12 @@ export async function listProducts(q: AdminListProductsQuery) {
       include: {
         images: { where: { isPrimary: true }, take: 1 },
         _count: { select: { variants: true } },
+        variants: {
+          where: { isActive: true },
+          select: { color: true, colorHex: true },
+          distinct: ['color'],
+          orderBy: { color: 'asc' },
+        },
       },
     }),
   ]);

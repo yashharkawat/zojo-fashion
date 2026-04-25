@@ -40,3 +40,17 @@ coverage/
 # Debug
 *.pem
 *.tsbuildinfo
+
+# Local Python venvs (e.g. mockup-classify)
+tools/mockup-classify/.venv/
+
+# Raw mockup source images — served via Cloudinary in production
+images-mockups-webp/**/*.webp
+design-mockups-hd/
+
+# Design / HD source files
+*.png
+*.jpg
+*.jpeg
+!apps/web/public/**/*.png
+!apps/web/public/**/*.jpg

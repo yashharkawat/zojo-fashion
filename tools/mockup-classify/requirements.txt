@@ -1,0 +1,5 @@
+# OpenCLIP mockup suggestions (CPU ok; install torch for your platform from https://pytorch.org/ if needed)
+open-clip-torch>=2.24.0
+torch>=2.0.0
+torchvision>=0.15.0
+Pillow>=10.0.0

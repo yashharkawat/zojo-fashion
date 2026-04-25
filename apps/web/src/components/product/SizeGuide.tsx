@@ -1,25 +1,24 @@
 'use client';
 
 import { Modal } from '@/components/ui/Modal';
+import type { SizeChartRow } from '@/types/product';
 
 export interface SizeGuideProps {
   open: boolean;
   onClose: () => void;
+  rows?: SizeChartRow[];
 }
 
-/**
- * Default size chart for Zojo Fashion oversized tees (in inches).
- * Replace with per-product chart when the catalog carries product-specific tables.
- */
-const SIZE_CHART: Array<{ size: string; chest: string; length: string; sleeve: string }> = [
-  { size: 'S',   chest: '42', length: '27', sleeve: '9.0' },
-  { size: 'M',   chest: '44', length: '28', sleeve: '9.5' },
-  { size: 'L',   chest: '46', length: '29', sleeve: '10.0' },
-  { size: 'XL',  chest: '48', length: '30', sleeve: '10.5' },
-  { size: 'XXL', chest: '50', length: '31', sleeve: '11.0' },
+const FALLBACK_CHART: SizeChartRow[] = [
+  { id: 'S',   size: 'S',   chest: '42', length: '27', sleeve: '9.0',  sortOrder: 0 },
+  { id: 'M',   size: 'M',   chest: '44', length: '28', sleeve: '9.5',  sortOrder: 1 },
+  { id: 'L',   size: 'L',   chest: '46', length: '29', sleeve: '10.0', sortOrder: 2 },
+  { id: 'XL',  size: 'XL',  chest: '48', length: '30', sleeve: '10.5', sortOrder: 3 },
+  { id: 'XXL', size: 'XXL', chest: '50', length: '31', sleeve: '11.0', sortOrder: 4 },
 ];
 
-export function SizeGuide({ open, onClose }: SizeGuideProps) {
+export function SizeGuide({ open, onClose, rows }: SizeGuideProps) {
+  const chart = rows && rows.length > 0 ? rows : FALLBACK_CHART;
   return (
     <Modal open={open} onClose={onClose} title="Size Guide" widthClass="max-w-2xl">
       <div className="space-y-6">
@@ -39,7 +38,7 @@ export function SizeGuide({ open, onClose }: SizeGuideProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-bg-border">
-              {SIZE_CHART.map((row) => (
+              {chart.map((row) => (
                 <tr key={row.size} className="transition-colors hover:bg-bg-overlay/50">
                   <td className="px-4 py-3 font-semibold text-fg-primary">{row.size}</td>
                   <td className="px-4 py-3 font-mono text-fg-secondary">{row.chest}</td>

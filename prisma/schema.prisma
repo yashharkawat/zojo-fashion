@@ -252,6 +252,9 @@ model Product {
   images             ProductImage[]
   variants           ProductVariant[]
 
+  sizeChartId        String?
+  sizeChart          SizeChart?           @relation(fields: [sizeChartId], references: [id])
+
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   deletedAt          DateTime?                                 // soft delete
@@ -338,6 +341,32 @@ model ProductImage {
 
   @@index([productId, sortOrder])
   @@index([productId, variantColor])
+}
+
+// =====================================================================
+// SIZE CHARTS (shared across products by category/type)
+// =====================================================================
+
+model SizeChart {
+  id        String         @id @default(cuid())
+  /// e.g. "oversized", "regular", "limited-edition"
+  name      String         @unique
+  rows      SizeChartRow[]
+  products  Product[]
+  createdAt DateTime       @default(now())
+}
+
+model SizeChartRow {
+  id        String    @id @default(cuid())
+  chartId   String
+  chart     SizeChart @relation(fields: [chartId], references: [id], onDelete: Cascade)
+  size      String    // "S", "M", "L", "XL", "XXL"
+  chest     String    // inches
+  length    String    // inches
+  sleeve    String    // inches
+  sortOrder Int       @default(0)
+
+  @@index([chartId, sortOrder])
 }
 
 // Singleton row for public storefront strings (footer socials, etc.)

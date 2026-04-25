@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mockup labeler (Phase C)</title>
+  <style>
+    :root {
+      --bg: #0c0c0e;
+      --fg: #f2f2f4;
+      --muted: #9a9aa3;
+      --accent: #ff6b2c;
+      --border: #2a2a32;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      padding: 1rem 1.25rem 2rem;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; }
+    p { color: var(--muted); font-size: 0.85rem; margin: 0 0 1rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; }
+    label { font-size: 0.8rem; color: var(--muted); }
+    select, input[type="text"], button {
+      background: #18181c;
+      border: 1px solid var(--border);
+      color: var(--fg);
+      border-radius: 6px;
+      padding: 0.45rem 0.65rem;
+      font-size: 0.9rem;
+    }
+    button {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary { background: #2d2d35; color: var(--fg); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .stage {
+      position: relative;
+      aspect-ratio: 1;
+      max-height: 72vh;
+      background: #121215;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .stage img { width: 100%; height: 100%; object-fit: contain; }
+    .meta { font-size: 0.8rem; color: var(--muted); }
+    .conf { font-family: ui-monospace, monospace; font-size: 0.75rem; }
+    .warn { color: #f59e0b; font-size: 0.8rem; }
+    .err { color: #f87171; }
+    kbd {
+      display: inline-block;
+      padding: 0.1em 0.4em;
+      border-radius: 4px;
+      background: #222;
+      font-size: 0.75rem;
+    }
+    ul.keys { margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>Mockup labeler</h1>
+  <p>Load a product folder, confirm face + color per image, then export or write into <code>/{slug}/front.webp|back.webp</code>.</p>
+
+  <div class="row">
+    <label>Product folder
+      <select id="product"></select>
+    </label>
+    <button type="button" id="load">Load folder</button>
+    <button type="button" class="secondary" id="prev">← Prev</button>
+    <button type="button" class="secondary" id="next">Next →</button>
+  </div>
+  <div class="row">
+    <span class="meta" id="status">Select a folder and click Load.</span>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="stage"><img id="view" alt="" crossorigin="anonymous" /></div>
+      <p class="meta" id="filename"></p>
+    </div>
+    <div>
+      <div class="row">
+        <label>Face
+          <select id="face">
+            <option value="front">front</option>
+            <option value="back">back</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label>Color
+          <select id="color"></select>
+        </label>
+      </div>
+      <p class="conf" id="clipLine"></p>
+      <p class="warn" id="dupWarn"></p>
+      <div class="row">
+        <button type="button" id="saveRepo">Save to repo &amp; show command</button>
+        <button type="button" class="secondary" id="download">Download JSON</button>
+      </div>
+      <div class="row">
+        <button type="button" id="writeDir">Write into folder (Chrome)…</button>
+      </div>
+      <p class="meta">Pick the <strong>product</strong> directory (e.g. <code>buddha-mockups</code>) when prompted.</p>
+      <ul class="keys">
+        <li><kbd>f</kbd> / <kbd>b</kbd> — face</li>
+        <li><kbd>1</kbd>–<kbd>9</kbd> — color by list order</li>
+        <li><kbd>j</kbd> / <kbd>k</kbd> or arrows — previous / next image</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const state = {
+    manifest: null,
+    product: null,
+    colors: [],
+    files: [],
+    i: 0,
+    /** @type {Record<string, {face: string, slug: string, name: string}>} */
+    assign: {},
+    sugg: {},
+  };
+
+  async function init() {
+    const r = await fetch("/catalog-manifest.json");
+    if (!r.ok) return;
+    state.manifest = await r.json();
+    const sel = $("product");
+    for (const k of Object.keys(state.manifest.productFolders).sort()) {
+      const o = document.createElement("option");
+      o.value = k;
+      o.textContent = k;
+      sel.appendChild(o);
+    }
+  }
+
+  function colorByIndex(n) {
+    if (n >= 0 && n < state.colors.length) {
+      const c = state.colors[n];
+      $("color").value = c.slug;
+      saveCurrent();
+    }
+  }
+
+  function saveCurrent() {
+    const f = state.files[state.i];
+    if (!f) return;
+    const slug = $("color").value;
+    const name = (state.colors.find((c) => c.slug === slug) || {}).name || slug;
+    state.assign[f] = { face: $("face").value, slug, name };
+  }
+
+  function showCurrent() {
+    const f = state.files[state.i];
+    if (!f) return;
+    $("view").src = "/mockups/" + encodeURI(state.product + "/" + f);
+    $("view").alt = f;
+    $("filename").textContent = (state.i + 1) + " / " + state.files.length + " — " + f;
+    const a = state.assign[f] || { face: "front", slug: state.colors[0].slug, name: state.colors[0].name };
+    $("face").value = a.face;
+    $("color").value = a.slug;
+    const s = state.sugg[f];
+    if (s) {
+      $("clipLine").textContent = "CLIP: " + s.face + " " + (s.face_conf * 100).toFixed(0) + "% · " + s.color + " " + (s.color_conf * 100).toFixed(0) + "%";
+    } else {
+      $("clipLine").textContent = "";
+    }
+    dupCheck();
+  }
+
+  function dupCheck() {
+    const m = new Map();
+    for (const [fn, a] of Object.entries(state.assign)) {
+      const k = a.slug + "||" + a.face;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    const bad = [...m.entries()].filter(([, c]) => c > 1);
+    $("dupWarn").textContent = bad.length
+      ? "Duplicate (slug+face): " + bad.map(([k]) => k).join(", ") + " — fix before write."
+      : "";
+    $("dupWarn").className = bad.length ? "warn" : "meta";
+  }
+
+  function step(d) {
+    saveCurrent();
+    state.i = Math.max(0, Math.min(state.files.length - 1, state.i + d));
+    showCurrent();
+  }
+
+  $("load").onclick = async () => {
+    state.product = $("product").value;
+    if (!state.product) return;
+    const preset = state.manifest.productFolders[state.product].colorPreset;
+    state.colors = state.manifest.colorPresets[preset];
+    const listSel = $("color");
+    listSel.innerHTML = "";
+    state.colors.forEach((c) => {
+      const o = document.createElement("option");
+      o.value = c.slug;
+      o.textContent = c.name + " (" + c.slug + ")";
+      listSel.appendChild(o);
+    });
+
+    const lr = await fetch("/list-mockups/" + encodeURI(state.product));
+    if (!lr.ok) {
+      $("status").textContent = "Could not list folder. Is " + state.product + " under images-mockups-webp?";
+      return;
+    }
+    const { files } = await lr.json();
+    state.files = files;
+    state.i = 0;
+    state.assign = {};
+    state.sugg = {};
+
+    const sr = await fetch("/mockups/" + encodeURI(state.product + "/suggestions.json"));
+    if (sr.ok) {
+      const data = await sr.json();
+      for (const it of data.items) {
+        state.sugg[it.file] = {
+          face: it.face,
+          face_conf: it.face_conf,
+          color: it.color,
+          color_conf: it.color_conf,
+        };
+        const c = state.colors.find((x) => x.name === it.color) || state.colors.find((x) => x.slug === it.color_slug);
+        if (c) {
+          state.assign[it.file] = { face: it.face, slug: c.slug, name: c.name };
+        }
+      }
+    }
+    for (const fn of state.files) {
+      if (!state.assign[fn]) {
+        const s = state.sugg[fn];
+        if (s) {
+          const c = state.colors.find((x) => x.name === s.color) || state.colors[0];
+          state.assign[fn] = { face: s.face, slug: c.slug, name: c.name };
+        } else {
+          state.assign[fn] = { face: "front", slug: state.colors[0].slug, name: state.colors[0].name };
+        }
+      }
+    }
+    $("status").textContent = "Loaded " + state.files.length + " images" + (sr.ok ? " (suggestions.json found)" : "");
+    if (state.files.length === 0) {
+      $("status").textContent = "No .webp files in folder.";
+      return;
+    }
+    showCurrent();
+  };
+
+  $("prev").onclick = () => step(-1);
+  $("next").onclick = () => step(1);
+  $("face").onchange = () => { saveCurrent(); showCurrent(); };
+  $("color").onchange = () => { saveCurrent(); dupCheck(); };
+
+  document.onkeydown = (e) => {
+    if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+    if (e.key === "f") { e.preventDefault(); $("face").value = "front"; saveCurrent(); showCurrent(); return; }
+    if (e.key === "b") { e.preventDefault(); $("face").value = "back"; saveCurrent(); showCurrent(); return; }
+    if (e.key === "j" || e.key === "ArrowLeft") { e.preventDefault(); step(-1); return; }
+    if (e.key === "k" || e.key === "ArrowRight") { e.preventDefault(); step(1); return; }
+    const d = e.key;
+    if (/^[1-9]$/.test(d)) {
+      e.preventDefault();
+      colorByIndex(parseInt(d, 10) - 1);
+      showCurrent();
+    }
+  };
+
+  function buildPayload() {
+    saveCurrent();
+    const folderMeta = state.manifest.productFolders[state.product] || {};
+    const payload = {
+      product: state.product,
+      productSlug: folderMeta.productSlug || null,
+      assignments: {},
+    };
+    for (const f of state.files) {
+      const a = state.assign[f];
+      if (!a) continue;
+      payload.assignments[f] = { face: a.face, slug: a.slug, name: a.name };
+    }
+    return payload;
+  }
+
+  $("saveRepo").onclick = async () => {
+    if (!state.product || !state.files.length) { alert("Load a folder first."); return; }
+    const payload = buildPayload();
+    try {
+      const r = await fetch("/save-apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await r.json();
+      if (json.error) throw new Error(json.error);
+      const cmd = "cd apps/api && npm run update:images -- ../../images-mockups-webp/" + state.product + "/apply.json";
+      $("status").textContent = "Saved. Now run: " + cmd;
+      // also show in a prompt so user can copy easily
+      prompt("Copy this command and run it in your terminal:", cmd);
+    } catch (e) {
+      $("status").textContent = "Save failed: " + e.message;
+    }
+  };
+
+  $("download").onclick = () => {
+    const payload = buildPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (state.product || "apply") + "-apply.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    $("status").textContent = "Downloaded.";
+  };
+
+  /** @param {FileSystemDirectoryHandle} root */
+  async function writeToDir(root) {
+    saveCurrent();
+    const m = new Map();
+    for (const [fn, a] of Object.entries(state.assign)) {
+      const k = a.slug + "||" + a.face;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    for (const [, c] of m) {
+      if (c > 1) {
+        alert("Fix duplicate slug+face assignments before writing.");
+        return;
+      }
+    }
+    for (const f of state.files) {
+      const a = state.assign[f];
+      const dir = await root.getDirectoryHandle(a.slug, { create: true });
+      const dest = await dir.getFileHandle(a.face + ".webp", { create: true });
+      const w = await dest.createWritable();
+      const buf = await fetch("/mockups/" + encodeURI(state.product + "/" + f)).then((r) => r.arrayBuffer());
+      await w.write(buf);
+      await w.close();
+    }
+    const log = await root.getFileHandle("labeler-applied.log", { create: true });
+    const lw = await log.createWritable();
+    await lw.write(
+      new Blob([JSON.stringify({ product: state.product, files: state.files.length, at: new Date().toISOString() }, null, 2)]),
+    );
+    await lw.close();
+    $("status").textContent = "Wrote color subfolders + labeler-applied.log";
+  }
+
+  $("writeDir").onclick = async () => {
+    if (!state.product || !state.files.length) {
+      alert("Load a folder first.");
+      return;
+    }
+    if (!("showDirectoryPicker" in window)) {
+      alert("File System Access API not available. Use Download apply JSON + npm run update:images");
+      return;
+    }
+    try {
+      const root = await showDirectoryPicker({ mode: "readwrite" });
+      await writeToDir(root);
+    } catch (e) {
+      if (e && e.name !== "AbortError") console.error(e);
+    }
+  };
+
+  init();
+})();
+  </script>
+</body>
+</html>

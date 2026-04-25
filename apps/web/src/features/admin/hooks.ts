@@ -35,6 +35,27 @@ export function useAdminProducts(filter: AdminProductsFilter = {}) {
   });
 }
 
+export function useSetDefaultColor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, color }: { id: string; color: string }) =>
+      adminApi.setDefaultColor(id, color),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'products'] });
+    },
+  });
+}
+
+export function useQuickCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (formData: FormData) => adminApi.quickCreateProduct(formData),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'products'] });
+    },
+  });
+}
+
 export function useUpdateOrderStatus() {
   const qc = useQueryClient();
   return useMutation({

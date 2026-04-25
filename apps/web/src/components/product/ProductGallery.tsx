@@ -95,30 +95,69 @@ export function ProductGallery({ images, title }: ProductGalleryProps) {
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
       >
-        <motion.div
-          key={current.id}
-          initial={reduce ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.2 }}
-          className="absolute inset-0"
-        >
-          <Image
-            src={current.url}
-            alt={current.alt ?? `${title} — image ${idx + 1}`}
-            fill
-            priority={idx === 0}
-            unoptimized={isDataUrl(current.url)}
-            sizes="(max-width: 1024px) 100vw, 50vw"
-            className={cn(
-              'object-cover transition-transform duration-300 ease-out',
-              zoom.active ? 'scale-150' : 'scale-100',
-            )}
-            style={{
-              transformOrigin: zoom.active ? `${zoom.x}% ${zoom.y}%` : 'center',
-            }}
-            draggable={false}
-          />
-        </motion.div>
+        {frontBack ? (
+          // Mount both layers so front + back fetch in parallel (previously only `current` was
+          // mounted, so "Back" waited on a cold network request after toggle).
+          frontBack.map((img, i) => {
+            const active = face === i;
+            return (
+              <motion.div
+                key={img.id}
+                initial={reduce ? false : { opacity: i === 0 ? 1 : 0 }}
+                animate={{ opacity: active ? 1 : 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0"
+                style={{ zIndex: active ? 2 : 1, pointerEvents: active ? 'auto' : 'none' }}
+                aria-hidden={!active}
+              >
+                <Image
+                  src={img.url}
+                  alt={img.alt ?? `${title} — image ${i + 1}`}
+                  fill
+                  priority={i === 0}
+                  loading={i === 0 ? undefined : 'eager'}
+                  fetchPriority={i === 0 ? 'high' : 'low'}
+                  unoptimized={isDataUrl(img.url)}
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className={cn(
+                    'object-cover transition-transform duration-300 ease-out',
+                    active && zoom.active ? 'scale-150' : 'scale-100',
+                  )}
+                  style={{
+                    transformOrigin: active && zoom.active ? `${zoom.x}% ${zoom.y}%` : 'center',
+                  }}
+                  draggable={false}
+                />
+              </motion.div>
+            );
+          })
+        ) : (
+          <motion.div
+            key={current.id}
+            initial={reduce ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0"
+          >
+            <Image
+              src={current.url}
+              alt={current.alt ?? `${title} — image ${idx + 1}`}
+              fill
+              priority={idx === 0}
+              fetchPriority="high"
+              unoptimized={isDataUrl(current.url)}
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className={cn(
+                'object-cover transition-transform duration-300 ease-out',
+                zoom.active ? 'scale-150' : 'scale-100',
+              )}
+              style={{
+                transformOrigin: zoom.active ? `${zoom.x}% ${zoom.y}%` : 'center',
+              }}
+              draggable={false}
+            />
+          </motion.div>
+        )}
 
         {frontBack && (
           <>

@@ -1,0 +1,175 @@
+{
+  "method": "pixel",
+  "folder": "zoro-mockups",
+  "use_ordering": true,
+  "items": [
+    {
+      "file": "98.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Bottle Green",
+      "color_slug": "bottle-green",
+      "color_conf": 0.959,
+      "sampled_rgb": [
+        37,
+        73,
+        49
+      ]
+    },
+    {
+      "file": "99.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Royal Blue",
+      "color_slug": "royal-blue",
+      "color_conf": 0.973,
+      "sampled_rgb": [
+        45,
+        52,
+        93
+      ]
+    },
+    {
+      "file": "100.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Purple",
+      "color_slug": "purple",
+      "color_conf": 0.96,
+      "sampled_rgb": [
+        60,
+        43,
+        69
+      ]
+    },
+    {
+      "file": "101.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.954,
+      "sampled_rgb": [
+        39,
+        65,
+        68
+      ]
+    },
+    {
+      "file": "102.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Olive Green",
+      "color_slug": "olive-green",
+      "color_conf": 0.947,
+      "sampled_rgb": [
+        59,
+        58,
+        37
+      ]
+    },
+    {
+      "file": "103.webp",
+      "face": "back",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Coral",
+      "color_slug": "coral",
+      "color_conf": 0.986,
+      "sampled_rgb": [
+        171,
+        90,
+        88
+      ]
+    },
+    {
+      "file": "104.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Bottle Green",
+      "color_slug": "bottle-green",
+      "color_conf": 0.956,
+      "sampled_rgb": [
+        35,
+        72,
+        48
+      ]
+    },
+    {
+      "file": "105.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Royal Blue",
+      "color_slug": "royal-blue",
+      "color_conf": 0.974,
+      "sampled_rgb": [
+        44,
+        51,
+        92
+      ]
+    },
+    {
+      "file": "106.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Purple",
+      "color_slug": "purple",
+      "color_conf": 0.946,
+      "sampled_rgb": [
+        58,
+        42,
+        68
+      ]
+    },
+    {
+      "file": "107.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Petrol Blue",
+      "color_slug": "petrol-blue",
+      "color_conf": 0.962,
+      "sampled_rgb": [
+        38,
+        63,
+        67
+      ]
+    },
+    {
+      "file": "108.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Olive Green",
+      "color_slug": "olive-green",
+      "color_conf": 0.964,
+      "sampled_rgb": [
+        57,
+        57,
+        35
+      ]
+    },
+    {
+      "file": "109.webp",
+      "face": "front",
+      "face_conf": 1.0,
+      "face_source": "ordering",
+      "color": "Coral",
+      "color_slug": "coral",
+      "color_conf": 0.982,
+      "sampled_rgb": [
+        169,
+        88,
+        87
+      ]
+    }
+  ]
+}

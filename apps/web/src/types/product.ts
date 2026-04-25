@@ -28,6 +28,21 @@ export interface ProductVariant {
   isActive: boolean;
 }
 
+export interface SizeChartRow {
+  id: string;
+  size: string;
+  chest: string;
+  length: string;
+  sleeve: string;
+  sortOrder: number;
+}
+
+export interface SizeChart {
+  id: string;
+  name: string;
+  rows: SizeChartRow[];
+}
+
 export interface ProductDetail {
   id: string;
   slug: string;
@@ -46,6 +61,7 @@ export interface ProductDetail {
   material: string | null;
   careInstructions: string | null;
   sizeGuideUrl: string | null;
+  sizeChart: SizeChart | null;
   images: ProductImage[];
   variants: ProductVariant[];
   avgRating: number | null;
@@ -78,20 +94,11 @@ export function buildVariantMatrix(variants: ProductVariant[]): VariantMatrix {
   return buildVariantMatrixForPdp(variants, null);
 }
 
-/** Swatch when a colorway exists only in images. */
-const FALLBACK_HEX: Record<string, string> = {
-  'Ice Blue': '#7eb6d9',
-  'Off White': '#e8e4dc',
-  Black: '#0a0a0a',
-  Charcoal: '#3d3d3d',
-  Navy: '#1a2744',
-  Forest: '#2d4a3e',
-  'Dusty Rose': '#c4a4a4',
-};
-
 /**
- * Merges colors from variants and from `ProductImage.variantColor` (so
- * `colors.length ≈ images/2` when every row is a front/back pair).
+ * Builds the variant matrix. Only colors that have at least one active variant
+ * appear in the picker — image-only colors are excluded so sizes are never
+ * unavailable for a displayed swatch.
+ * Image `sortOrder` is still used to determine the display order of swatches.
  */
 export function buildVariantMatrixForPdp(
   variants: ProductVariant[],
@@ -99,30 +106,28 @@ export function buildVariantMatrixForPdp(
 ): VariantMatrix {
   const active = variants.filter((v) => v.isActive);
   const sizes = sortSizes(Array.from(new Set(active.map((v) => v.size))));
+
+  // colorMap: only variant colors (guaranteed purchasable)
   const colorMap = new Map<string, { name: string; hex: string | null }>();
   for (const v of active) {
     if (!colorMap.has(v.color)) colorMap.set(v.color, { name: v.color, hex: v.colorHex });
   }
-  if (images) {
-    for (const im of images) {
-      const c = im.variantColor?.trim();
-      if (!c || colorMap.has(c)) continue;
-      colorMap.set(c, { name: c, hex: FALLBACK_HEX[c] ?? null });
-    }
-  }
+
   const byKey = new Map<string, ProductVariant>();
   for (const v of active) byKey.set(`${v.size}__${v.color}`, v);
-  // Preserve catalog order: first seen in image `sortOrder` (so swatches follow mockups)
+
+  // Use image sortOrder to order swatches, but only for colors that exist in colorMap.
   const orderedNames: string[] = [];
   if (images) {
     for (const im of [...images].sort((a, b) => a.sortOrder - b.sortOrder)) {
       const c = im.variantColor?.trim();
-      if (c && !orderedNames.includes(c) && colorMap.has(c)) orderedNames.push(c);
+      if (c && colorMap.has(c) && !orderedNames.includes(c)) orderedNames.push(c);
     }
   }
   for (const c of colorMap.keys()) {
     if (!orderedNames.includes(c)) orderedNames.push(c);
   }
+
   const colors = orderedNames.map((n) => colorMap.get(n)!).filter(Boolean);
   return { sizes, colors, byKey };
 }

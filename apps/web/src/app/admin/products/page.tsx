@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 
-import { useAdminProducts } from '@/features/admin/hooks';
+import { useAdminProducts, useSetDefaultColor } from '@/features/admin/hooks';
 import { DataTable, type ColumnDef } from '@/components/admin/DataTable';
 import { Input } from '@/components/ui/Input';
 import { inr, formatDate } from '@/lib/format';
@@ -12,6 +12,46 @@ import { cn } from '@/lib/cn';
 import type { AdminProduct } from '@/features/admin/types';
 
 const isDataUrl = (s: string) => s.startsWith('data:');
+
+function ColorSwatches({ product }: { product: AdminProduct }) {
+  const { mutate, isPending, variables } = useSetDefaultColor();
+  const uniqueColors = product.variants.filter(
+    (v, i, arr) => arr.findIndex((x) => x.color === v.color) === i,
+  );
+  if (uniqueColors.length === 0) return <span className="text-fg-muted text-xs">—</span>;
+
+  return (
+    <div className="flex flex-wrap gap-1 items-center">
+      {uniqueColors.map((v) => {
+        const isDefault = product.defaultColor === v.color;
+        const isLoading = isPending && variables?.color === v.color && variables?.id === product.id;
+        return (
+          <button
+            key={v.color}
+            type="button"
+            title={`Set "${v.color}" as default${isDefault ? ' (current)' : ''}`}
+            disabled={isPending}
+            onClick={() => mutate({ id: product.id, color: v.color })}
+            className={cn(
+              'relative h-6 w-6 rounded-full border-2 transition-all hover:scale-110',
+              isDefault
+                ? 'border-accent shadow-glow-sm scale-110'
+                : 'border-bg-border hover:border-fg-muted',
+              isLoading && 'opacity-50 cursor-wait',
+            )}
+            style={{ backgroundColor: v.colorHex ?? '#333' }}
+          >
+            {isDefault && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="h-1.5 w-1.5 rounded-full bg-white shadow" />
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AdminProductsPage() {
   const [search, setSearch] = useState('');
@@ -74,6 +114,11 @@ export default function AdminProductsPage() {
         ),
     },
     {
+      id: 'default-color',
+      header: 'Default Color',
+      cell: (p) => <ColorSwatches product={p} />,
+    },
+    {
       id: 'variants',
       header: 'Variants',
       align: 'center',
@@ -122,12 +167,20 @@ export default function AdminProductsPage() {
             {query.data ? `${query.data.pagination.total} total` : '—'}
           </p>
         </div>
-        <Link
-          href="/admin/products/new"
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold uppercase tracking-widest text-white shadow-glow-sm hover:bg-accent-hover hover:shadow-glow"
-        >
-          + New product
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/admin/products/upload"
+            className="rounded-lg border border-accent bg-transparent px-4 py-2 text-sm font-semibold uppercase tracking-widest text-accent hover:bg-accent hover:text-white"
+          >
+            Quick Create
+          </Link>
+          <Link
+            href="/admin/products/new"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold uppercase tracking-widest text-white shadow-glow-sm hover:bg-accent-hover hover:shadow-glow"
+          >
+            + New product
+          </Link>
+        </div>
       </header>
 
       <div className="flex flex-wrap gap-3">

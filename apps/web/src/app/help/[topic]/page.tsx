@@ -10,10 +10,14 @@ const TOPICS: Record<string, { title: string; description: string; body: ReactNo
     body: (
       <>
         <p>
-          We ship across India. Processing usually takes 1–2 business days; transit time depends
-          on your pin code and the courier.
+          We ship across India. Processing usually takes 5–6 business days; transit time depends
+          on your pin code and the courier assigned to your area.
         </p>
-        <p>You will get tracking details by email and SMS when your order ships.</p>
+        <p>
+          You will receive tracking details by email and SMS once your order ships. If your order
+          hasn&apos;t moved in 7 business days, reach out at{' '}
+          <a href="mailto:zojo.fashion.tee@gmail.com">zojo.fashion.tee@gmail.com</a>.
+        </p>
       </>
     ),
   },
@@ -23,10 +27,15 @@ const TOPICS: Record<string, { title: string; description: string; body: ReactNo
     body: (
       <>
         <p>
-          We want you to love your order. If something does not fit or arrives damaged, contact
-          us within 7 days of delivery with your order number and photos where relevant.
+          Replacement is only available in the case of a verified printing defect or physical
+          damage to the product on arrival. We do not accept returns for size or fit reasons.
         </p>
-        <p>We will share return or exchange steps based on your case.</p>
+        <p>
+          Please review the size guide carefully before placing your order. If you receive a
+          defective item, email us at{' '}
+          <a href="mailto:zojo.fashion.tee@gmail.com">zojo.fashion.tee@gmail.com</a> within 48
+          hours of delivery with your order number and a photo of the defect.
+        </p>
       </>
     ),
   },
@@ -36,10 +45,46 @@ const TOPICS: Record<string, { title: string; description: string; body: ReactNo
     body: (
       <>
         <p>
-          Our tees and hoodies use standard unisex sizing. If you are between sizes, most people
-          size up for a relaxed street fit.
+          All measurements are in inches. Measure your chest at the widest point and match to the
+          chart below. If you are between sizes, size up for a relaxed oversized street fit.
         </p>
-        <p>Exact measurements per product will be added to each product page over time.</p>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-bg-border">
+                <th className="py-3 pr-8 text-left font-display text-xs tracking-widest uppercase text-fg-muted">
+                  Size
+                </th>
+                <th className="py-3 pr-8 text-left font-display text-xs tracking-widest uppercase text-fg-muted">
+                  Chest (in)
+                </th>
+                <th className="py-3 text-left font-display text-xs tracking-widest uppercase text-fg-muted">
+                  Length (in)
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-bg-border">
+              {[
+                ['XS', 40, 27],
+                ['S',  42, 28],
+                ['M',  44, 29],
+                ['L',  46, 30],
+                ['XL', 48, 31],
+                ['2XL', 50, 32],
+              ].map(([size, chest, length]) => (
+                <tr key={size} className="hover:bg-bg-elevated transition-colors">
+                  <td className="py-3 pr-8 font-medium text-fg-primary">{size}</td>
+                  <td className="py-3 pr-8 text-fg-secondary">{chest}</td>
+                  <td className="py-3 text-fg-secondary">{length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p>
+          These measurements apply to our Unisex Oversized Classic T-Shirt (UC22) — drop
+          shoulder, extra length, 240 GSM heavyweight cotton. All current Zojo tees use this fit.
+        </p>
       </>
     ),
   },
@@ -48,8 +93,14 @@ const TOPICS: Record<string, { title: string; description: string; body: ReactNo
     description: 'Get in touch with ZOJO support.',
     body: (
       <>
-        <p>For order help, partnerships, or press, reach out via the email we publish on this site
-          once support is fully wired. Until then, use the social links in the footer.</p>
+        <p>
+          For order help, partnerships, or press inquiries, reach out at{' '}
+          <a href="mailto:zojo.fashion.tee@gmail.com">zojo.fashion.tee@gmail.com</a>. We typically
+          respond within 24–48 hours.
+        </p>
+        <p>
+          You can also DM us on Instagram for quicker support on order-related questions.
+        </p>
       </>
     ),
   },

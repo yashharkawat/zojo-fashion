@@ -45,7 +45,26 @@ export const adminListProductsQuerySchema = z.object({
   search: z.string().max(100).optional(),
 });
 
+export const productIdParamSchema = z.object({ id: z.string().min(1) });
+export const setDefaultColorBodySchema = z.object({ color: z.string().min(1).max(100) });
+
+export const quickCreateProductBodySchema = z.object({
+  title: z.string().min(2).max(120),
+  description: z.string().min(10).max(2000),
+  animeSeries: z.string().max(80).optional(),
+  categorySlug: z.string().min(1).max(50).default('oversized'),
+  basePrice: z.coerce.number().int().min(1),
+  compareAtPrice: z.coerce.number().int().min(1).optional(),
+  tags: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.split(',').map((t) => t.trim()).filter(Boolean) : [])),
+  material: z.string().max(200).optional(),
+});
+
 export type AdminListOrdersQuery = z.infer<typeof adminListOrdersQuerySchema>;
 export type AdminUpdateOrderStatusBody = z.infer<typeof adminUpdateOrderStatusBodySchema>;
 export type AdminAnalyticsQuery = z.infer<typeof adminAnalyticsQuerySchema>;
 export type AdminListProductsQuery = z.infer<typeof adminListProductsQuerySchema>;
+export type SetDefaultColorBody = z.infer<typeof setDefaultColorBodySchema>;
+export type QuickCreateProductInput = z.infer<typeof quickCreateProductBodySchema>;

@@ -77,4 +77,31 @@ export const adminApi = {
 
   createProduct: (body: unknown) =>
     api<AdminProduct>(`/products`, { method: 'POST', body }),
+
+  setDefaultColor: (id: string, color: string) =>
+    api<{ ok: boolean; defaultColor: string }>(`/admin/products/${id}/default-color`, {
+      method: 'PATCH',
+      body: { color },
+    }),
+
+  quickCreateProduct: async (formData: FormData): Promise<AdminProduct> => {
+    const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const token =
+      typeof window !== 'undefined'
+        ? (document.cookie.match(/(?:^|;\s*)at=([^;]+)/) ?? [])[1]
+        : null;
+
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE}/admin/products/quick-create`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: formData,
+    });
+    const json = (await res.json()) as { data?: AdminProduct; error?: { message: string } };
+    if (!res.ok || json.error) throw new Error(json.error?.message ?? 'Upload failed');
+    return json.data!;
+  },
 };

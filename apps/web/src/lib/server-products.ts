@@ -91,6 +91,21 @@ function toProductDetail(raw: Record<string, unknown>): ProductDetail | null {
     material: raw.material == null || typeof raw.material === 'string' ? (raw.material as string | null) : null,
     careInstructions: raw.careInstructions == null || typeof raw.careInstructions === 'string' ? (raw.careInstructions as string | null) : null,
     sizeGuideUrl: raw.sizeGuideUrl == null || typeof raw.sizeGuideUrl === 'string' ? (raw.sizeGuideUrl as string | null) : null,
+    sizeChart: (() => {
+      const sc = raw.sizeChart as Record<string, unknown> | null | undefined;
+      if (!sc || typeof sc !== 'object') return null;
+      const rows = Array.isArray(sc.rows)
+        ? (sc.rows as Record<string, unknown>[]).map((r) => ({
+            id: String(r.id ?? ''),
+            size: String(r.size ?? ''),
+            chest: String(r.chest ?? ''),
+            length: String(r.length ?? ''),
+            sleeve: String(r.sleeve ?? ''),
+            sortOrder: typeof r.sortOrder === 'number' ? r.sortOrder : 0,
+          }))
+        : [];
+      return { id: String(sc.id ?? ''), name: String(sc.name ?? ''), rows };
+    })(),
     images,
     variants,
     avgRating: raw.avgRating == null || typeof raw.avgRating === 'number' ? (raw.avgRating as number | null) : null,
