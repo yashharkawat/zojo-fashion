@@ -11,7 +11,7 @@ export default function CareersPage() {
     <StaticInfoPage title="Careers">
       <p>We are not listing open roles on the site yet.</p>
       <p>
-        If you are excited about anime, streetwear, and building a brand from India, say hello
+        If you are excited about unique designs, streetwear, and building a brand from India, say hello
         through the contact page and we will keep you in mind.
       </p>
     </StaticInfoPage>

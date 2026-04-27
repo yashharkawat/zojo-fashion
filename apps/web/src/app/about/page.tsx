@@ -13,8 +13,7 @@ export default async function AboutPage() {
   return (
     <StaticInfoPage title="About ZOJO">
       <p>
-        ZOJO is an anime streetwear label born in India, built for the ones who felt every arc,
-        stayed up for every episode, and carry their fandom not as nostalgia — but as identity.
+        ZOJO is a unique designs streetwear, born in India.
       </p>
       <p>
         We don&apos;t make merch. We make wearable art. Every design is crafted to hit as hard as

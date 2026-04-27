@@ -48,7 +48,7 @@ export function Header() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search anime series, drops…"
+            placeholder="Search products…"
             aria-label="Search products"
             className={cn(
               'h-10 w-full rounded-full bg-bg-elevated pl-10 pr-4 text-sm',
