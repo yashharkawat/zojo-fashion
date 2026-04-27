@@ -6,6 +6,7 @@ import type {
   OrderStatus,
   Pagination,
 } from './types';
+import { getStoredAccessToken } from '@/lib/authStorage';
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
   const sp = new URLSearchParams();
@@ -86,10 +87,7 @@ export const adminApi = {
 
   quickCreateProduct: async (formData: FormData): Promise<AdminProduct> => {
     const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
-    const token =
-      typeof window !== 'undefined'
-        ? (document.cookie.match(/(?:^|;\s*)at=([^;]+)/) ?? [])[1]
-        : null;
+    const token = getStoredAccessToken();
 
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
