@@ -61,7 +61,7 @@ export function Hero() {
           transition={{ duration: 0.5, delay: 0.15 }}
           className="mt-5 max-w-md text-base leading-relaxed text-fg-secondary md:text-lg"
         >
-          Premium anime streetwear, printed in India. For the ones who wear
+          Premium streetwear, printed in India. For the ones who wear
           their fandom with a straight face.
         </motion.p>
 
