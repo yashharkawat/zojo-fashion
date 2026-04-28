@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     default: 'ZOJO — Wear The Bold',
     template: '%s | ZOJO',
   },
-  description: 'Anime-inspired premium streetwear. Printed in India for the otakus who wear their fandom with a straight face.',
+  description: 'Premium streetwear, printed in India. For the ones who wear their fandom with a straight face.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
   openGraph: {
     type: 'website',

@@ -4,7 +4,7 @@ import { fetchSiteSettings } from '@/lib/server-settings';
 
 export const metadata: Metadata = {
   title: 'About',
-  description: 'ZOJO — anime-inspired streetwear, printed in India.',
+  description: 'ZOJO — Premium streetwear, printed in India. For the ones who wear their fandom with a straight face.',
 };
 
 export default async function AboutPage() {

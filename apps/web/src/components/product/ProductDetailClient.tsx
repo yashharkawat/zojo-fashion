@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
 
 import { inr } from '@/lib/format';
@@ -158,14 +157,6 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
           className="flex flex-col gap-6"
         >
           <header className="space-y-3">
-            {product.animeSeries && (
-              <Link
-                href={`/products?anime=${encodeURIComponent(product.animeSeries)}`}
-                className="inline-block text-xs font-semibold uppercase tracking-[0.25em] text-accent hover:underline"
-              >
-                {product.animeSeries}
-              </Link>
-            )}
             <h1 className="font-display text-4xl tracking-tight text-fg-primary md:text-5xl">
               {product.title}
             </h1>

@@ -45,12 +45,6 @@ export function ProductCard({ product, priority = false }: { product: ProductCar
             <div className="flex h-full items-center justify-center text-fg-muted">No image</div>
           )}
 
-          {product.animeSeries && (
-            <span className="absolute left-3 top-3 rounded-full bg-black/70 px-2 py-1 text-xs text-accent backdrop-blur-sm">
-              {product.animeSeries}
-            </span>
-          )}
-
           {discount && (
             <span className="absolute right-3 top-3 rounded-full bg-pink px-2 py-1 text-xs font-bold text-white">
               −{discount}%

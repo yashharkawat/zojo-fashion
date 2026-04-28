@@ -148,11 +148,6 @@ export function FlipProductCard({
             className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/80 via-black/20 to-transparent"
           />
 
-          {product.animeSeries && (
-            <span className="absolute left-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-widest text-accent backdrop-blur-sm">
-              {product.animeSeries}
-            </span>
-          )}
           {discount && (
             <span className="absolute right-3 top-3 rounded-full bg-accent px-2.5 py-1 font-mono text-[11px] font-bold text-white shadow-glow-sm">
               −{discount}%
