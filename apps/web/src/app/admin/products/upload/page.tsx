@@ -69,14 +69,23 @@ export default function QuickCreateProductPage() {
     setPreviews((prev) => prev.filter((p) => p.name !== name));
   }
 
-  // ── sort previews numerically so the order is clear ───────
-  const sorted = [...previews].sort((a, b) => {
-    const na = parseInt(a.name.replace(/\D/g, ''), 10) || 0;
-    const nb = parseInt(b.name.replace(/\D/g, ''), 10) || 0;
-    return na - nb;
-  });
+  // ── group previews into front/back pairs by colorId from filename ─
+  const pairMap = (() => {
+    const groups = new Map<string, { front?: FilePreview; back?: FilePreview }>();
+    for (const p of previews) {
+      const m = /^(front|back)_\d+_c_(\w+)/i.exec(p.name);
+      if (!m) continue;
+      const side = m[1]!.toLowerCase() as 'front' | 'back';
+      const colorId = m[2]!;
+      const group = groups.get(colorId) ?? {};
+      group[side] = p;
+      groups.set(colorId, group);
+    }
+    return groups;
+  })();
 
-  const half = Math.floor(sorted.length / 2);
+  const completePairs = [...pairMap.entries()].filter(([, g]) => g.front && g.back);
+  const unparsed = previews.filter((p) => !/^(front|back)_\d+_c_(\w+)/i.test(p.name));
 
   // ── submit ────────────────────────────────────────────────
 
@@ -85,8 +94,8 @@ export default function QuickCreateProductPage() {
     setError(null);
     setResult(null);
 
-    if (sorted.length < 2 || sorted.length % 2 !== 0) {
-      setError('Upload an even number of webp files (one back + one front per color).');
+    if (completePairs.length === 0) {
+      setError('No complete pairs found. Name files as Front_1_c_{id}.webp and Back_2_c_{id}.webp.');
       return;
     }
 
@@ -99,8 +108,9 @@ export default function QuickCreateProductPage() {
     formData.set('compareAtPrice', compareAtPrice);
     formData.set('tags', tags);
     formData.set('material', material);
-    for (const p of sorted) {
-      formData.append('files', p.file, p.name);
+    for (const [, group] of completePairs) {
+      formData.append('files', group.front!.file, group.front!.name);
+      formData.append('files', group.back!.file, group.back!.name);
     }
 
     try {
@@ -272,17 +282,17 @@ export default function QuickCreateProductPage() {
 
           <button
             type="submit"
-            disabled={isPending || sorted.length === 0}
+            disabled={isPending || completePairs.length === 0}
             className={cn(
               'w-full rounded-lg py-3 text-sm font-semibold uppercase tracking-widest transition-colors',
-              isPending || sorted.length === 0
+              isPending || completePairs.length === 0
                 ? 'cursor-not-allowed bg-bg-elevated text-fg-muted'
                 : 'bg-accent text-white hover:bg-accent-hover',
             )}
           >
             {isPending
               ? 'Uploading & detecting colors…'
-              : `Create Product (${sorted.length / 2 || 0} colorways)`}
+              : `Create Product (${completePairs.length} colorway${completePairs.length !== 1 ? 's' : ''})`}
           </button>
         </div>
 
@@ -290,9 +300,9 @@ export default function QuickCreateProductPage() {
         <div className="space-y-5">
           <h2 className="font-display text-lg tracking-wide text-fg-primary">
             Mockup Files
-            {sorted.length > 0 && (
+            {completePairs.length > 0 && (
               <span className="ml-2 text-sm font-normal text-fg-muted">
-                ({sorted.length} files · {half} backs + {sorted.length - half} fronts)
+                ({completePairs.length} complete pair{completePairs.length !== 1 ? 's' : ''})
               </span>
             )}
           </h2>
@@ -316,7 +326,7 @@ export default function QuickCreateProductPage() {
             <div className="text-center">
               <p className="text-sm font-medium text-fg-primary">Drop .webp files here</p>
               <p className="mt-1 text-xs text-fg-muted">
-                First half = backs, second half = fronts (sorted numerically)
+                Name as <span className="font-mono">Front_1_c_25.webp</span> / <span className="font-mono">Back_2_c_25.webp</span> — same suffix = same color
               </p>
             </div>
             <input
@@ -329,31 +339,44 @@ export default function QuickCreateProductPage() {
             />
           </div>
 
-          {/* Preview grid */}
-          {sorted.length > 0 && (
+          {/* Preview grid — one row per color pair */}
+          {completePairs.length > 0 && (
             <div className="space-y-3">
-              {/* Back images */}
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-fg-muted">
-                  Backs ({half})
-                </p>
-                <div className="grid grid-cols-4 gap-2">
-                  {sorted.slice(0, half).map((p) => (
-                    <PreviewThumb key={p.name} preview={p} onRemove={() => removeFile(p.name)} />
-                  ))}
+              {completePairs.map(([colorId, group]) => (
+                <div key={colorId} className="rounded-lg border border-bg-border p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-fg-muted">
+                    Color id: {colorId}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {group.front && (
+                      <PreviewThumb
+                        label="Front"
+                        preview={group.front}
+                        onRemove={() => removeFile(group.front!.name)}
+                      />
+                    )}
+                    {group.back && (
+                      <PreviewThumb
+                        label="Back"
+                        preview={group.back}
+                        onRemove={() => removeFile(group.back!.name)}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-              {/* Front images */}
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-fg-muted">
-                  Fronts ({sorted.length - half})
-                </p>
-                <div className="grid grid-cols-4 gap-2">
-                  {sorted.slice(half).map((p) => (
-                    <PreviewThumb key={p.name} preview={p} onRemove={() => removeFile(p.name)} />
-                  ))}
+              ))}
+              {unparsed.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-danger">
+                    Unrecognised ({unparsed.length}) — will be skipped
+                  </p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {unparsed.map((p) => (
+                      <PreviewThumb key={p.name} preview={p} onRemove={() => removeFile(p.name)} />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
               <button
                 type="button"
                 onClick={() => setPreviews([])}
@@ -386,12 +409,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function PreviewThumb({
   preview,
   onRemove,
+  label,
 }: {
   preview: FilePreview;
   onRemove: () => void;
+  label?: string;
 }) {
   return (
     <div className="group relative overflow-hidden rounded-lg border border-bg-border">
+      {label && (
+        <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white">
+          {label}
+        </span>
+      )}
       <Image
         src={preview.url}
         alt={preview.name}

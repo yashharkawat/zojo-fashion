@@ -49,11 +49,15 @@ function colorDistance(r: number, g: number, b: number, refHex: string): number 
   return hd * 2.5 + sd * 0.4 + vd * 0.3;
 }
 
-/** Returns true for flat near-white pixels (studio background). */
+/**
+ * Returns true for flat near-white background pixels to skip in zone sampling.
+ * Non-background samples (shirt fabric) are accumulated separately anyway, so
+ * this only needs to remove the most obvious studio-white pixels.
+ */
 function isFlatGrey(r: number, g: number, b: number): boolean {
   const avg = (r + g + b) / 3;
   const spread = Math.max(r, g, b) - Math.min(r, g, b);
-  return avg > 230 && spread < 20;
+  return avg > 235 && spread < 15;
 }
 
 // ── Zone sampling ─────────────────────────────────────────
@@ -86,6 +90,8 @@ async function sampleZone(
 
   const channels = info.channels; // 4 (RGBA)
   let rs = 0, gs = 0, bs = 0, count = 0;
+  // Accumulate ALL opaque pixels as a fallback (for white/off-white shirts)
+  let allRs = 0, allGs = 0, allBs = 0, allCount = 0;
 
   for (let i = 0; i < data.length; i += channels) {
     const alpha = data[i + 3] ?? 255;
@@ -93,13 +99,17 @@ async function sampleZone(
     const pr = data[i]!;
     const pg = data[i + 1]!;
     const pb = data[i + 2]!;
+    allRs += pr; allGs += pg; allBs += pb; allCount++;
     if (!isFlatGrey(pr, pg, pb)) {
       rs += pr; gs += pg; bs += pb; count++;
     }
   }
 
-  if (count === 0) return null;
-  return [rs / count, gs / count, bs / count];
+  if (count > 0) return [rs / count, gs / count, bs / count];
+  // All pixels were filtered (zone IS near-white) — the shirt itself is white/light.
+  // Return the zone average so the color detector can match it against the palette.
+  if (allCount > 0) return [allRs / allCount, allGs / allCount, allBs / allCount];
+  return null;
 }
 
 async function sampleShirtColor(buffer: Buffer): Promise<[number, number, number]> {
@@ -150,17 +160,21 @@ export async function detectColor(buffer: Buffer): Promise<DetectedColor> {
   return { name: bestName, hex: bestHex };
 }
 
-export interface FilePair {
-  backBuffer: Buffer;
-  frontBuffer: Buffer;
-  originalBackName: string;
-  originalFrontName: string;
+/**
+ * Parse the side and color-id from a filename following the convention:
+ *   Front_{n}_c_{colorId}.webp  or  Back_{n}_c_{colorId}.webp
+ */
+function parseFileParts(name: string): { side: 'front' | 'back'; colorId: string } | null {
+  const m = /^(front|back)_\d+_c_(\w+)/i.exec(name);
+  if (!m) return null;
+  return { side: m[1]!.toLowerCase() as 'front' | 'back', colorId: m[2]! };
 }
 
 /**
- * Given an array of sorted buffers + names, split into front/back pairs.
- * Convention: first half = backs, second half = fronts (same as pixel_suggest.py).
- * Returns pairs with a detected color for each.
+ * Group uploaded files into front/back pairs using the filename convention
+ * Front_{n}_c_{colorId}.webp / Back_{n}_c_{colorId}.webp.
+ * Files with the same colorId are the same shirt color.
+ * Color name is still assigned via pixel sampling against the supplier palette.
  */
 export async function detectPairs(
   files: Array<{ buffer: Buffer; name: string }>,
@@ -173,33 +187,44 @@ export async function detectPairs(
     frontName: string;
   }>
 > {
-  // Sort numerically by filename stem (strip extension)
-  const sorted = [...files].sort((a, b) => {
-    const na = parseInt(a.name.replace(/\D/g, ''), 10) || 0;
-    const nb = parseInt(b.name.replace(/\D/g, ''), 10) || 0;
-    return na - nb;
-  });
+  type Side = { buffer: Buffer; name: string };
+  const groups = new Map<string, { front?: Side; back?: Side }>();
 
-  const half = Math.floor(sorted.length / 2);
-  const backs = sorted.slice(0, half);
-  const fronts = sorted.slice(half);
+  console.log('[detectPairs] received files:', files.map((f) => f.name));
+
+  for (const file of files) {
+    const parts = parseFileParts(file.name);
+    if (!parts) {
+      console.warn('[detectPairs] SKIPPED (no match):', file.name);
+      continue;
+    }
+    console.log(`[detectPairs] parsed: ${file.name}  →  side=${parts.side}  colorId=${parts.colorId}`);
+    const group = groups.get(parts.colorId) ?? {};
+    group[parts.side] = file;
+    groups.set(parts.colorId, group);
+  }
+
+  console.log('[detectPairs] groups:', [...groups.entries()].map(([id, g]) => ({
+    colorId: id,
+    front: g.front?.name ?? 'MISSING',
+    back: g.back?.name ?? 'MISSING',
+  })));
+
   const pairs: Awaited<ReturnType<typeof detectPairs>> = [];
-
-  // Track used colors to avoid duplicates
   const usedColors = new Set<string>();
 
-  for (let i = 0; i < Math.min(backs.length, fronts.length); i++) {
-    const back = backs[i]!;
-    const front = fronts[i]!;
+  for (const [colorId, group] of groups) {
+    if (!group.front || !group.back) {
+      console.warn(`[detectPairs] skipping incomplete pair for colorId=${colorId}`);
+      continue;
+    }
 
-    // Average both images' samples for more stable color
-    const [rb, gb, bb] = await sampleShirtColor(back.buffer);
-    const [rf, gf, bf] = await sampleShirtColor(front.buffer);
+    const [rb, gb, bb] = await sampleShirtColor(group.back.buffer);
+    const [rf, gf, bf] = await sampleShirtColor(group.front.buffer);
     const avgR = (rb + rf) / 2;
     const avgG = (gb + gf) / 2;
     const avgB = (bb + bf) / 2;
 
-    // Find best unused color
     const ranked = ALL_COLORS
       .map((c) => ({ ...c, dist: colorDistance(avgR, avgG, avgB, c.hex) }))
       .sort((a, b) => a.dist - b.dist);
@@ -207,12 +232,14 @@ export async function detectPairs(
     const picked = ranked.find((c) => !usedColors.has(c.name)) ?? ranked[0]!;
     usedColors.add(picked.name);
 
+    console.log(`[detectPairs] colorId=${colorId}  front=${group.front.name}  back=${group.back.name}  avgRGB=(${avgR.toFixed(0)},${avgG.toFixed(0)},${avgB.toFixed(0)})  → detected="${picked.name}"`);
+
     pairs.push({
       color: { name: picked.name, hex: picked.hex },
-      backBuffer: back.buffer,
-      frontBuffer: front.buffer,
-      backName: back.name,
-      frontName: front.name,
+      backBuffer: group.back.buffer,
+      frontBuffer: group.front.buffer,
+      backName: group.back.name,
+      frontName: group.front.name,
     });
   }
 

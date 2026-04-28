@@ -305,11 +305,7 @@ export async function quickCreateProduct(
   input: QuickCreateProductInput,
   files: Array<{ buffer: Buffer; originalname: string }>,
 ) {
-  if (files.length < 2 || files.length % 2 !== 0) {
-    throw new ConflictError('Upload an even number of webp files (one back + one front per color).');
-  }
-
-  // 1. Detect color pairs from uploaded images
+  // 1. Detect color pairs from uploaded images (grouped by filename colorId)
   const rawFiles = files.map((f) => ({ buffer: f.buffer, name: f.originalname }));
   const pairs = await detectPairs(rawFiles);
 
