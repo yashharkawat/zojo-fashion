@@ -117,7 +117,7 @@ export async function fetchProductDetailBySlug(slug: string): Promise<ProductDet
   const base = getApiBase();
   if (!base) return null;
   try {
-    const res = await fetch(`${base}/products/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${base}/products/${encodeURIComponent(slug)}`, { cache: 'no-store' });
     if (res.status === 404) return null;
     if (!res.ok) return null;
     const body = (await res.json()) as ApiOneEnvelope;

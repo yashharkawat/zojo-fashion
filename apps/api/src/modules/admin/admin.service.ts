@@ -313,6 +313,7 @@ export async function quickCreateProduct(
     throw new ConflictError('Could not detect any color pairs from the uploaded files.');
   }
 
+
   const slug = input.title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
