@@ -368,9 +368,12 @@ export async function quickCreateProduct(
   const sizeChart = await prisma.sizeChart.findUnique({ where: { name: input.categorySlug } });
   const SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
 
+  // Short unique ID per product so SKUs never collide even when title/slug is reused
+  const skuId = Math.random().toString(36).slice(2, 8).toUpperCase();
+
   const variantRows = SIZES.flatMap((size, si) =>
     pairs.map((pair, ci) => ({
-      sku: `ZJ-${finalSlug.replace(/-/g, '').slice(0, 10).toUpperCase()}-C${ci}-${size}`,
+      sku: `ZJ-${skuId}-C${ci}-${size}`,
       size,
       color: pair.color.name,
       colorHex: pair.color.hex,
