@@ -190,34 +190,19 @@ export async function detectPairs(
   type Side = { buffer: Buffer; name: string };
   const groups = new Map<string, { front?: Side; back?: Side }>();
 
-  console.log('[detectPairs] received files:', files.map((f) => f.name));
-
   for (const file of files) {
     const parts = parseFileParts(file.name);
-    if (!parts) {
-      console.warn('[detectPairs] SKIPPED (no match):', file.name);
-      continue;
-    }
-    console.log(`[detectPairs] parsed: ${file.name}  →  side=${parts.side}  colorId=${parts.colorId}`);
+    if (!parts) continue;
     const group = groups.get(parts.colorId) ?? {};
     group[parts.side] = file;
     groups.set(parts.colorId, group);
   }
 
-  console.log('[detectPairs] groups:', [...groups.entries()].map(([id, g]) => ({
-    colorId: id,
-    front: g.front?.name ?? 'MISSING',
-    back: g.back?.name ?? 'MISSING',
-  })));
-
   const pairs: Awaited<ReturnType<typeof detectPairs>> = [];
   const usedColors = new Set<string>();
 
-  for (const [colorId, group] of groups) {
-    if (!group.front || !group.back) {
-      console.warn(`[detectPairs] skipping incomplete pair for colorId=${colorId}`);
-      continue;
-    }
+  for (const [, group] of groups) {
+    if (!group.front || !group.back) continue;
 
     const [rb, gb, bb] = await sampleShirtColor(group.back.buffer);
     const [rf, gf, bf] = await sampleShirtColor(group.front.buffer);
@@ -231,8 +216,6 @@ export async function detectPairs(
 
     const picked = ranked.find((c) => !usedColors.has(c.name)) ?? ranked[0]!;
     usedColors.add(picked.name);
-
-    console.log(`[detectPairs] colorId=${colorId}  front=${group.front.name}  back=${group.back.name}  avgRGB=(${avgR.toFixed(0)},${avgG.toFixed(0)},${avgB.toFixed(0)})  → detected="${picked.name}"`);
 
     pairs.push({
       color: { name: picked.name, hex: picked.hex },
