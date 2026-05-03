@@ -282,7 +282,7 @@ async function notifyMerchantWhatsappOnNewPaidOrder(ctx: OrderNotificationContex
 
 export async function notifyOrderShipped(ctx: OrderNotificationContext): Promise<void> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://zojo-fashion.yashharkawat.com';
-  const brandedTrackingUrl = `${siteUrl}/track/${encodeURIComponent(ctx.orderNumber)}`;
+  const brandedTrackingUrl = `${siteUrl}/orders/${encodeURIComponent(ctx.orderNumber)}`;
 
   await Promise.allSettled([
     sendEmail({

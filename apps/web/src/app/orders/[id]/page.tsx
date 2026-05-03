@@ -129,14 +129,50 @@ function OrderTrackBody({ id }: { id: string }) {
         </ol>
       )}
 
-      {data.shipment?.awbNumber && (
-        <Link
-          href={`/track/${encodeURIComponent(data.orderNumber)}`}
-          className="mt-6 inline-flex text-sm font-semibold text-accent hover:underline"
-        >
-          Track shipment
-          {data.shipment.awbNumber ? ` — AWB ${data.shipment.awbNumber}` : ''}
-        </Link>
+      {data.shipment && data.shipment.awbNumber && (
+        <div className="mt-6 rounded-xl border border-bg-border bg-bg-elevated p-5">
+          <h2 className="font-display text-lg tracking-wide text-fg-primary">Shipment</h2>
+          <dl className="mt-3 space-y-1.5 text-sm text-fg-secondary">
+            {data.shipment.courier && (
+              <div className="flex justify-between">
+                <dt>Courier</dt>
+                <dd className="font-medium text-fg-primary">{data.shipment.courier}</dd>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <dt>AWB</dt>
+              <dd className="font-mono text-fg-primary">{data.shipment.awbNumber}</dd>
+            </div>
+            {data.shipment.shippedAt && (
+              <div className="flex justify-between">
+                <dt>Shipped</dt>
+                <dd className="text-fg-primary">{formatDate(data.shipment.shippedAt)}</dd>
+              </div>
+            )}
+            {data.shipment.estimatedDeliveryAt && !data.shipment.deliveredAt && (
+              <div className="flex justify-between">
+                <dt>Est. delivery</dt>
+                <dd className="text-fg-primary">{formatDate(data.shipment.estimatedDeliveryAt)}</dd>
+              </div>
+            )}
+            {data.shipment.deliveredAt && (
+              <div className="flex justify-between">
+                <dt>Delivered</dt>
+                <dd className="text-fg-primary">{formatDate(data.shipment.deliveredAt)}</dd>
+              </div>
+            )}
+          </dl>
+          {data.shipment.trackingUrl && (
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/track/${encodeURIComponent(data.orderNumber)}/redirect`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex h-11 w-full items-center justify-center rounded-lg bg-accent font-semibold uppercase tracking-widest text-white shadow-glow-sm transition-all hover:bg-accent-hover hover:shadow-glow"
+            >
+              Track with courier →
+            </a>
+          )}
+        </div>
       )}
 
       <div className="mt-8 rounded-xl border border-bg-border bg-bg-elevated p-5">

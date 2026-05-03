@@ -34,6 +34,9 @@ export type MyOrderDetail = {
     awbNumber: string | null;
     trackingUrl: string | null;
     courier: string | null;
+    shippedAt: string | null;
+    estimatedDeliveryAt: string | null;
+    deliveredAt: string | null;
   } | null;
 };
 
