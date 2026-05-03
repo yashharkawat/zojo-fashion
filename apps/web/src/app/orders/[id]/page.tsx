@@ -116,6 +116,90 @@ function ShipmentCard({ shipment }: { shipment: Shipment }) {
   );
 }
 
+function Stars({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [hover, setHover] = useState(0);
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <button
+          key={s}
+          type="button"
+          onClick={() => onChange(s)}
+          onMouseEnter={() => setHover(s)}
+          onMouseLeave={() => setHover(0)}
+          className={cn('text-2xl leading-none transition-transform hover:scale-110', (hover || value) >= s ? 'text-warn' : 'text-bg-border')}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function InlineReview({ slug, productTitle }: { slug: string; productTitle: string }) {
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+  const [rating, setRating] = useState(0);
+  const [body, setBody] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!rating) { setError('Pick a star rating'); return; }
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch(`${apiBase}/products/${encodeURIComponent(slug)}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ rating, body: body || undefined }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { message?: string };
+        throw new Error(err.message ?? 'Could not submit');
+      }
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-bg-border bg-bg-elevated p-5">
+      <h2 className="font-display text-base tracking-wide text-fg-primary">
+        Rate your purchase
+      </h2>
+      <p className="mt-0.5 text-sm text-fg-secondary">{productTitle}</p>
+      {done ? (
+        <p className="mt-3 text-sm text-green-400">Thanks for your review! 🙌</p>
+      ) : (
+        <form onSubmit={submit} className="mt-3 space-y-3">
+          <Stars value={rating} onChange={setRating} />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="How was it? (optional)"
+            rows={2}
+            maxLength={1000}
+            className="w-full resize-none rounded-lg border border-bg-border bg-bg-base px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted focus:border-accent focus:outline-none"
+          />
+          {error && <p className="text-xs text-danger">{error}</p>}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="h-9 rounded-lg bg-accent px-5 text-sm font-semibold uppercase tracking-widest text-white shadow-glow-sm hover:bg-accent-hover disabled:opacity-50"
+          >
+            {submitting ? 'Submitting…' : 'Submit review'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 function OrderTrackBody({ id }: { id: string }) {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['order', id],
@@ -300,6 +384,30 @@ function OrderTrackBody({ id }: { id: string }) {
           {data.payment.razorpayPaymentId ? ` · ${data.payment.razorpayPaymentId}` : ''}
         </p>
       )}
+
+      {/* Rate & Support */}
+      {status === 'DELIVERED' && (
+        <div className="mt-6 space-y-3">
+          {data.items.map((item) => {
+            const slug = item.variant?.product?.slug;
+            if (!slug) return null;
+            return <InlineReview key={item.id} slug={slug} productTitle={item.productTitle} />;
+          })}
+        </div>
+      )}
+
+      <div className="mt-6 rounded-xl border border-bg-border bg-bg-elevated p-5">
+        <h2 className="font-display text-base tracking-wide text-fg-primary">Need help?</h2>
+        <p className="mt-1 text-sm text-fg-secondary">
+          For returns, exchanges, or any questions about this order, reach out to us.
+        </p>
+        <a
+          href={`mailto:zojo.fashion.tee@gmail.com?subject=Order ${data.orderNumber}&body=Hi, I need help with order ${data.orderNumber}.`}
+          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-bg-border px-4 py-2.5 text-sm font-medium text-fg-primary transition-colors hover:border-accent hover:text-accent"
+        >
+          ✉ Contact support
+        </a>
+      </div>
 
       <div className="mt-6">
         <Link href="/orders" className="text-sm text-accent hover:underline">

@@ -23,6 +23,7 @@ export type MyOrderDetail = {
     quantity: number;
     unitPrice: number;
     lineTotal: number;
+    variant?: { product?: { slug?: string } };
   }>;
   payment: {
     status: string;
