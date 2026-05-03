@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue, DM_Sans } from 'next/font/google';
+import Script from 'next/script';
 import type { ReactNode } from 'react';
 
 import './globals.css';
@@ -10,6 +11,7 @@ import { Footer } from '@/components/layout/Footer';
 import { CartDrawer } from '@/components/cart/CartDrawer';
 import { Toaster } from '@/components/ui/Toaster';
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
+import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 
 const bebas = Bebas_Neue({
   subsets: ['latin'],
@@ -46,14 +48,31 @@ export const viewport: Viewport = {
   themeColor: '#0A0A0A',
 };
 
+const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${bebas.variable} ${dmSans.variable}`}>
+      {GA_ID && (
+        <>
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+            strategy="afterInteractive"
+          />
+          <Script id="ga-init" strategy="afterInteractive">{`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_ID}');
+          `}</Script>
+        </>
+      )}
       <body
         className="min-h-screen overflow-x-hidden bg-bg-base font-sans text-fg-primary antialiased"
         style={{ backgroundColor: '#0A0A0A', color: '#F5F5F5' }}
       >
         <Providers>
+          <GoogleAnalytics />
           <Header />
           <SecondaryNav />
           <main>{children}</main>
