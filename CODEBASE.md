@@ -39,9 +39,9 @@ There is no shared `packages/` directory. The two apps are independent — `apps
 | Payments | Razorpay (Indian payment gateway) |
 | Auth | JWT access tokens (short-lived) + HTTP-only refresh token cookies |
 | File storage | Cloudinary (product images) |
-| Email | Nodemailer (SMTP via env) |
+| Email | Nodemailer (Gmail SMTP, port 587 / STARTTLS) |
 | SMS | Fast2SMS (Indian SMS gateway) |
-| Analytics | Google Analytics 4 (GA4, `G-4VDP640XC4`) |
+| Analytics | Google Analytics 4 (GA4, `G-4VDP640XC4`) + GoatCounter (public visit count in footer) |
 | Deployment | API → Railway, Web → Vercel |
 | DB hosting | Neon (PostgreSQL serverless, ap-southeast-1) |
 
@@ -154,6 +154,8 @@ All routes are under `/api/v1/`:
 | `POST /admin/products/quick-create` | ADMIN + multipart | admin |
 | `PATCH /admin/products/:id/default-color` | ADMIN | admin |
 | `POST /admin/orders/:id/mark-manual-review` | ADMIN | admin |
+| `GET /admin/orders/:id` | ADMIN | admin |
+| `POST /admin/orders/:id/resend-shipping-email` | ADMIN | admin |
 | `GET /admin/blog` | ADMIN | blog |
 | `POST /admin/blog` | ADMIN | blog |
 | `PATCH /admin/blog/:id` | ADMIN | blog |
@@ -176,6 +178,7 @@ interface OrderNotificationContext {
   orderId: string; orderNumber: string; customerName: string;
   customerEmail: string; customerPhone: string | null;
   totalPaise: number; trackingUrl?: string; courier?: string; awbNumber?: string;
+  items: { productTitle: string; variantLabel: string; quantity: number }[];
 }
 ```
 
@@ -264,10 +267,10 @@ RootLayout (RSC, async — fetches SiteSettings)
 | `/cart` | Client | Cart page with coupon, price preview |
 | `/checkout` | Client | Address selection + Razorpay payment |
 | `/orders` | Client | Order history list |
-| `/orders/[id]` | Client | Order detail with status timeline + tracking link |
+| `/orders/[id]` | Client | Order detail: status timeline, embedded courier iframe, inline review + support |
 | `/orders/[id]/success` | Client | Post-payment confirmation |
 | `/orders/[id]/pending` | Client | Pending payment state |
-| `/track/[orderNumber]` | Client | Public ZOJO-branded tracking page (no login required) |
+| `/track/[orderNumber]` | Client | Public ZOJO-branded tracking page (no login required); the actual courier page is embedded via iframe on the customer order detail page |
 | `/track-order` | Client | Redirect to /orders for logged-in, login prompt for guests |
 | `/blog` | RSC | Blog post grid |
 | `/blog/[slug]` | RSC | Individual blog post with Markdown rendering |
@@ -323,6 +326,8 @@ RootLayout (RSC, async — fetches SiteSettings)
 | `src/lib/server-settings.ts` | Fetches `SiteSettings` from API (RSC, 5-min revalidate) |
 | `src/lib/pricing.ts` | Shipping fee / GST calculation (client) |
 | `src/lib/authStorage.ts` | localStorage helpers for access token persistence |
+| `src/components/layout/VisitorCount.tsx` | Client component; fetches `/api/visitors` proxy and renders visit count in footer |
+| `src/app/api/visitors/route.ts` | Next.js route handler; proxies GoatCounter JSON API (60s cache) |
 
 ---
 
@@ -343,11 +348,12 @@ PENDING → CONFIRMED → PRINTING → SHIPPED → DELIVERED
 
 ### Tracking Flow (hides Quikink from customers)
 
-- Admin enters Quikink URL in admin dashboard when shipping.
-- It's stored in `Shipment.trackingUrl` (DB, never sent to client HTML).
-- Customer receives branded link: `GET /track/ORDER_NUMBER` (public Next.js page).
-- "Track with courier" button on that page hits `GET /api/v1/track/ORDER_NUMBER/redirect` → 302 to Quikink.
-- Customer order detail page links to `/track/ORDER_NUMBER` (not Quikink directly).
+- Admin enters Quikink URL in admin dashboard when shipping an order.
+- It's stored in `Shipment.trackingUrl` (DB-only; never sent directly to client HTML).
+- Customer receives a branded tracking link in the shipping email (`/track/ORDER_NUMBER`).
+- The customer order detail page (`/orders/[id]`) embeds the courier page in an **iframe** at the bottom. If the courier site blocks iframe embedding (X-Frame-Options), a fallback link appears.
+- Server-side redirect: `GET /api/v1/track/ORDER_NUMBER/redirect` → 302 to the raw Quikink URL (used internally and for the branded email).
+- Admin can resend the shipping email at any time via "↺ Resend tracking email" button on the admin order detail page (`POST /admin/orders/:id/resend-shipping-email`). This also runs an SMTP connection check and surfaces errors to the UI.
 
 ---
 
@@ -363,8 +369,9 @@ PENDING → CONFIRMED → PRINTING → SHIPPED → DELIVERED
 | `RAZORPAY_KEY_ID` | Razorpay API key |
 | `RAZORPAY_KEY_SECRET` | Razorpay secret |
 | `RAZORPAY_WEBHOOK_SECRET` | Webhook signature verification |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Email sending |
-| `EMAIL_FROM` | From address for transactional emails |
+| `GMAIL_USER` | Gmail address for sending transactional emails |
+| `GMAIL_APP_PASSWORD` | Gmail App Password (not account password) — 16-char app password |
+| `EMAIL_FROM` | From display name/address (defaults to `Zojo Fashion <GMAIL_USER>`) |
 | `FAST2SMS_API_KEY` | SMS (Indian customers) |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Image upload |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed frontend origins |
@@ -382,6 +389,7 @@ PENDING → CONFIRMED → PRINTING → SHIPPED → DELIVERED
 | `NEXT_PUBLIC_SITE_URL` | Site URL for metadata |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | GA4 measurement ID (`G-4VDP640XC4`) |
+| `NEXT_PUBLIC_GOATCOUNTER_URL` | GoatCounter site URL e.g. `https://zojo.goatcounter.com` |
 
 ---
 
@@ -420,14 +428,48 @@ Always work in paise (integer). Use `inr(paise)` from `src/lib/format.ts` to dis
 - One review per user per product (`@@unique([productId, userId])`).
 - User must have a paid order (`CONFIRMED|PRINTING|SHIPPED|DELIVERED`) containing the product to leave a review.
 - `avgRating` and `reviewCount` on `Product` are recalculated atomically in a Prisma `$transaction` on every review create/delete.
+- The inline review form on `/orders/[id]` uses the `api()` utility (not raw `fetch`) so the Bearer token is automatically included — do not use raw `fetch` here, it will get a 401.
+
+### Order Detail Timeline
+
+The status timeline on `/orders/[id]` uses **absolute-positioned CSS tracks** (not flex-item line segments):
+- A full-width grey background bar is drawn behind all dots.
+- An accent-coloured fill bar grows from 0% (Confirmed) to 100% (Delivered) based on `activeIdx / (steps - 1) * 100`.
+- Dots are rendered in a `justify-between` flex row overlaid on top.
+- Previous approach (line inside each `<li>` with `-mt-4`) left a visual gap before the last dot — do not revert to that pattern.
 
 ### SiteSettings
 
 Singleton row with `id = 'default'`. Fields: `instagramUrl`, `youtubeUrl`, `whatsappNumber`. Fetched by the web app at build/request time via `fetchSiteSettings()` in `src/lib/server-settings.ts` (5-min revalidate). Also fetched server-side in `layout.tsx` to pass `whatsappNumber` to the floating WhatsApp button.
 
+### Email (SMTP)
+
+Uses **explicit Gmail SMTP** settings (not `service: 'gmail'`):
+- Host: `smtp.gmail.com`, port `587`, `secure: false` (STARTTLS)
+- Required env vars: `GMAIL_USER` + `GMAIL_APP_PASSWORD`
+- This config is more reliable on cloud hosts like Railway where port 465 (SSL) is often blocked.
+- `resendShippingNotification` in `admin.service.ts` runs `transporter.verify()` before sending to surface SMTP errors immediately to the admin UI.
+
+### Admin — Mobile Layout
+
+The admin section is fully mobile-optimised:
+- On small screens, `AdminSidebar` is hidden; a `MobileTabBar` (fixed bottom nav with 4 tabs: Overview, Orders, Products, Settings) replaces it.
+- `/admin/orders` renders `OrderCard` components (mobile-friendly cards) instead of a `DataTable` on small screens.
+- `/admin/orders/[id]` has a sticky bottom action bar so admins can change order status with one thumb.
+- Admin order list and detail auto-refresh after status changes via React Query invalidation.
+- The admin layout adds `pb-24` to the content area to clear the bottom tab bar.
+
 ### Google Analytics
 
 GA4 script loaded in `layout.tsx` via `next/script` with `afterInteractive`. Page view tracking on route change handled by `GoogleAnalytics` component (uses `usePathname` + `useSearchParams` inside a `<Suspense>` boundary to avoid prerendering errors).
+
+### GoatCounter (Visitor Count)
+
+- Tracking script injected in `layout.tsx` via `next/script` (`data-goatcounter="${GC_URL}/count"`).
+- `VisitorCount` component in the footer fetches `/api/visitors` (Next.js route handler) which proxies `${GC_URL}/counter/%2F.json`.
+- The proxy caches for 60 seconds (`next: { revalidate: 60 }`).
+- **Requires "Make statistics public"** to be enabled in the GoatCounter dashboard — otherwise the JSON endpoint returns 403 and no count is shown.
+- Count only appears when it's non-zero (component returns `null` otherwise).
 
 ---
 
@@ -455,7 +497,8 @@ Production URLs:
 | **Fast2SMS** | SMS to Indian numbers | `FAST2SMS_API_KEY` in `apps/api/.env` |
 | **Google OAuth** | Sign in with Google | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` |
 | **GA4** | Web analytics | `NEXT_PUBLIC_GA_MEASUREMENT_ID` = `G-4VDP640XC4` |
+| **GoatCounter** | Privacy-friendly visit counter shown in footer | `NEXT_PUBLIC_GOATCOUNTER_URL` = `https://zojo.goatcounter.com` |
 | **Telegram Bot** | Merchant new-order alerts | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` |
-| **Quikink** | Print-on-demand / courier | Tracking URL stored in `Shipment.trackingUrl`, never sent to client directly |
+| **Quikink** | Print-on-demand / courier | Tracking URL stored in `Shipment.trackingUrl`, embedded via iframe on order detail page; never sent to client as raw URL |
 | **Railway** | API hosting | |
 | **Vercel** | Web hosting | |
