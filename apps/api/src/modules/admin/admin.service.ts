@@ -6,7 +6,7 @@ import { refundPayment } from '../../lib/razorpay';
 import { ConflictError, NotFoundError } from '../../lib/errors';
 import { detectPairs } from '../../lib/colorDetect';
 import { colorNameToSlug } from '../../lib/colorPalette';
-import { notifyOrderShipped } from '../../lib/notifications';
+import { notifyOrderShipped, notifyOrderDelivered } from '../../lib/notifications';
 import type {
   AdminListOrdersQuery,
   AdminUpdateOrderStatusBody,
@@ -201,8 +201,8 @@ export async function updateOrderStatus(
       .catch((err) => logger.error({ err, orderId }, 'Refund failed'));
   }
 
-  // Shipped notification — fire-and-forget after transaction commits
-  if (input.status === OrderStatus.SHIPPED && input.trackingInfo) {
+  // Post-transition notifications — fire-and-forget after transaction commits
+  if (input.status === OrderStatus.SHIPPED || input.status === OrderStatus.DELIVERED) {
     const fullOrder = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -222,9 +222,16 @@ export async function updateOrderStatus(
         courier: fullOrder.shipment?.courier ?? undefined,
         awbNumber: fullOrder.shipment?.awbNumber ?? undefined,
       };
-      notifyOrderShipped(ctx).catch((err) =>
-        logger.error({ err, orderId }, 'notifyOrderShipped failed'),
-      );
+      if (input.status === OrderStatus.SHIPPED && input.trackingInfo) {
+        notifyOrderShipped(ctx).catch((err) =>
+          logger.error({ err, orderId }, 'notifyOrderShipped failed'),
+        );
+      }
+      if (input.status === OrderStatus.DELIVERED) {
+        notifyOrderDelivered(ctx).catch((err) =>
+          logger.error({ err, orderId }, 'notifyOrderDelivered failed'),
+        );
+      }
     }
   }
 

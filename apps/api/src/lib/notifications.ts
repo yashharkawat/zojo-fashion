@@ -312,13 +312,23 @@ export async function notifyOrderShipped(ctx: OrderNotificationContext): Promise
 }
 
 export async function notifyOrderDelivered(ctx: OrderNotificationContext): Promise<void> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://zojo-fashion.yashharkawat.com';
+  const ordersUrl = `${siteUrl}/orders`;
+
   await sendEmail({
     to: ctx.customerEmail,
-    subject: `Order ${ctx.orderNumber} delivered — how did we do?`,
+    subject: `Your order ${ctx.orderNumber} has been delivered! 🎉`,
     html: `
-      <h2>Delivered! 🎉</h2>
-      <p>Hope you love your Zojo piece. Would you leave a quick review? It helps other otakus find us.</p>
-      <p><a href="https://zojofashion.com/orders/${ctx.orderNumber}/review">Leave a review</a></p>
+      <h2>Delivered, ${escapeHtml(ctx.customerName)}! 🎉</h2>
+      <p>Your Zojo order <strong>${escapeHtml(ctx.orderNumber)}</strong> has arrived. Hope you love it!</p>
+      <p style="margin-top:20px">
+        <a href="${ordersUrl}" style="background:#a855f7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">
+          View your orders →
+        </a>
+      </p>
+      <p style="margin-top:16px;font-size:13px;color:#888">
+        Loved your purchase? Leave a review on the product page — it helps other customers find us!
+      </p>
     `,
     tags: { type: 'order_delivered', orderNumber: ctx.orderNumber },
   });
