@@ -156,7 +156,7 @@ function OrderTrackBody({ id }: { id: string }) {
   const activeIdx = timelineActiveIndex(status);
 
   const itemTitle = data.items.length === 1
-    ? data.items[0].productTitle
+    ? (data.items[0]?.productTitle ?? data.orderNumber)
     : data.items.map((i) => i.productTitle).join(', ');
 
   const STATUS_LABEL: Record<string, string> = {
