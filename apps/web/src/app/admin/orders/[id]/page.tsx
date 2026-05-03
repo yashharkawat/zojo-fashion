@@ -34,6 +34,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
 
   const [trackingCourier, setTrackingCourier] = useState('');
   const [trackingAwb, setTrackingAwb] = useState('');
+  const [trackingUrl, setTrackingUrl] = useState('');
 
   if (orderQuery.isLoading) {
     return <div className="skeleton h-96 w-full rounded-xl" aria-hidden />;
@@ -56,7 +57,11 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
         status: next,
         trackingInfo:
           next === 'SHIPPED'
-            ? { courier: trackingCourier.trim(), awb: trackingAwb.trim() }
+            ? {
+                courier: trackingCourier.trim(),
+                awb: trackingAwb.trim(),
+                trackingUrl: trackingUrl.trim() || undefined,
+              }
             : undefined,
       });
       dispatch(pushToast({ kind: 'success', message: `Order → ${next}`, duration: 2500 }));
@@ -113,16 +118,22 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
             {order.status === 'PRINTING' && (
               <div className="mb-4 grid gap-3 sm:grid-cols-2">
                 <input
-                  placeholder="Courier (Delhivery)"
+                  placeholder="Courier (e.g. Quikink, Delhivery)"
                   value={trackingCourier}
                   onChange={(e) => setTrackingCourier(e.target.value)}
                   className="h-10 rounded-md border border-bg-border bg-bg-overlay px-3 text-sm text-fg-primary"
                 />
                 <input
-                  placeholder="AWB number"
+                  placeholder="AWB / tracking number"
                   value={trackingAwb}
                   onChange={(e) => setTrackingAwb(e.target.value)}
                   className="h-10 rounded-md border border-bg-border bg-bg-overlay px-3 text-sm font-mono text-fg-primary"
+                />
+                <input
+                  placeholder="Tracking URL (Quikink link) — customer will receive this"
+                  value={trackingUrl}
+                  onChange={(e) => setTrackingUrl(e.target.value)}
+                  className="h-10 rounded-md border border-bg-border bg-bg-overlay px-3 text-sm text-fg-primary sm:col-span-2"
                 />
               </div>
             )}
@@ -152,6 +163,21 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                 AWB: <strong className="font-mono text-fg-primary">{order.shipment.awbNumber}</strong>
                 {order.shipment.courier ? ` (${order.shipment.courier})` : null}
               </p>
+              {order.shipment.trackingUrl ? (
+                <p className="mt-1">
+                  Tracking:{' '}
+                  <a
+                    href={order.shipment.trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all text-accent underline underline-offset-2"
+                  >
+                    {order.shipment.trackingUrl}
+                  </a>
+                </p>
+              ) : (
+                <p className="mt-1 text-fg-muted">No tracking URL set.</p>
+              )}
             </section>
           )}
         </div>

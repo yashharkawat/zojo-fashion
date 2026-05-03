@@ -129,16 +129,14 @@ function OrderTrackBody({ id }: { id: string }) {
         </ol>
       )}
 
-      {data.shipment?.trackingUrl && (
-        <a
-          href={data.shipment.trackingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+      {data.shipment?.awbNumber && (
+        <Link
+          href={`/track/${encodeURIComponent(data.orderNumber)}`}
           className="mt-6 inline-flex text-sm font-semibold text-accent hover:underline"
         >
           Track shipment
           {data.shipment.awbNumber ? ` — AWB ${data.shipment.awbNumber}` : ''}
-        </a>
+        </Link>
       )}
 
       <div className="mt-8 rounded-xl border border-bg-border bg-bg-elevated p-5">

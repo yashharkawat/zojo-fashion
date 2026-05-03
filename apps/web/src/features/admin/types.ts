@@ -27,7 +27,7 @@ export interface AdminOrder {
   user: AdminOrderUser;
   items: Array<{ productTitle: string; variantLabel: string; quantity: number }>;
   payment: { status: string; method: string | null; razorpayPaymentId: string | null } | null;
-  shipment: { status: string; awbNumber: string | null; courier: string | null } | null;
+  shipment: { status: string; awbNumber: string | null; courier: string | null; trackingUrl: string | null } | null;
 }
 
 export interface AdminAnalytics {

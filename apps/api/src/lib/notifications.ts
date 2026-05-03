@@ -281,23 +281,31 @@ async function notifyMerchantWhatsappOnNewPaidOrder(ctx: OrderNotificationContex
 }
 
 export async function notifyOrderShipped(ctx: OrderNotificationContext): Promise<void> {
-  if (!ctx.trackingUrl) return;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://zojo-fashion.yashharkawat.com';
+  const brandedTrackingUrl = `${siteUrl}/track/${encodeURIComponent(ctx.orderNumber)}`;
+
   await Promise.allSettled([
     sendEmail({
       to: ctx.customerEmail,
       subject: `Your order ${ctx.orderNumber} has shipped!`,
       html: `
         <h2>On its way, ${escapeHtml(ctx.customerName)} 📦</h2>
-        <p>Your order <strong>${ctx.orderNumber}</strong> is now in transit via <strong>${escapeHtml(ctx.courier ?? 'courier')}</strong>.</p>
-        <p>AWB: <code>${escapeHtml(ctx.awbNumber ?? '')}</code></p>
-        <p><a href="${ctx.trackingUrl}" style="background:#a855f7;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none">Track your order</a></p>
+        <p>Your order <strong>${escapeHtml(ctx.orderNumber)}</strong> is now in transit${ctx.courier ? ` via <strong>${escapeHtml(ctx.courier)}</strong>` : ''}.${ctx.awbNumber ? ` AWB: <code>${escapeHtml(ctx.awbNumber)}</code>` : ''}</p>
+        <p style="margin-top:20px">
+          <a href="${brandedTrackingUrl}" style="background:#a855f7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">
+            Track your order →
+          </a>
+        </p>
+        <p style="margin-top:16px;font-size:12px;color:#888">
+          Estimated delivery: about one week from dispatch. You'll receive another email when it's delivered.
+        </p>
       `,
       tags: { type: 'order_shipped', orderNumber: ctx.orderNumber },
     }),
     ctx.customerPhone
       ? sendSms({
           to: ctx.customerPhone,
-          body: `Zojo Fashion: order ${ctx.orderNumber} shipped. Track: ${ctx.trackingUrl}`,
+          body: `Zojo Fashion: order ${ctx.orderNumber} shipped! Track here: ${brandedTrackingUrl}`,
         })
       : Promise.resolve({ ok: true }),
   ]);

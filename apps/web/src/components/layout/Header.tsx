@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectCartCount } from '@/store/slices/cartSlice';
@@ -17,12 +17,26 @@ export function Header() {
   const { isAuthenticated, user, status: authStatus, isAdmin } = useAuth();
   const mounted = useHasMounted(); // gate hydration-unsafe renders (cart count, auth state)
   const [query, setQuery] = useState('');
+  const isFirstRender = useRef(true);
+
+  // Debounced live search — 500 ms after the user stops typing.
+  // Also handles clearing: navigates back to /products when query is emptied.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      const q = query.trim();
+      router.push(q ? `/products?search=${encodeURIComponent(q)}` : '/products');
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [query, router]);
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const q = query.trim();
-    if (!q) return;
-    router.push(`/products?search=${encodeURIComponent(q)}`);
+    router.push(q ? `/products?search=${encodeURIComponent(q)}` : '/products');
   };
 
   return (

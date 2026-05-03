@@ -15,7 +15,7 @@ export function Hero() {
   return (
     <section
       aria-label="Featured drop"
-      className="hero-cinematic relative h-[92vh] h-[92svh] min-h-[560px] w-full overflow-hidden bg-bg-base grain vignette"
+      className="hero-cinematic relative h-[68svh] min-h-[380px] w-full overflow-hidden bg-bg-base grain vignette md:h-[92svh] md:min-h-[560px]"
     >
       {/* Background visual — swap for licensed anime warrior key-art.
           Using a dark cinematic gradient as placeholder so it looks great
@@ -35,7 +35,7 @@ export function Hero() {
       <EmberParticles className="absolute inset-0 z-0 h-full w-full" />
 
       {/* Content */}
-      <div className="relative z-10 mx-auto flex h-full max-w-7xl flex-col items-start justify-end px-4 pb-16 md:justify-center md:pb-0">
+      <div className="relative z-10 mx-auto flex h-full max-w-7xl flex-col items-start justify-end px-4 pb-10 md:justify-center md:pb-0">
         <motion.p
           initial={reduce ? false : { opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}

@@ -6,6 +6,7 @@ import { refundPayment } from '../../lib/razorpay';
 import { ConflictError, NotFoundError } from '../../lib/errors';
 import { detectPairs } from '../../lib/colorDetect';
 import { colorNameToSlug } from '../../lib/colorPalette';
+import { notifyOrderShipped } from '../../lib/notifications';
 import type {
   AdminListOrdersQuery,
   AdminUpdateOrderStatusBody,
@@ -184,6 +185,33 @@ export async function updateOrderStatus(
         });
       })
       .catch((err) => logger.error({ err, orderId }, 'Refund failed'));
+  }
+
+  // Shipped notification — fire-and-forget after transaction commits
+  if (input.status === OrderStatus.SHIPPED && input.trackingInfo) {
+    const fullOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+        shipment: { select: { trackingUrl: true, awbNumber: true, courier: true } },
+      },
+    });
+    if (fullOrder?.user) {
+      const ctx = {
+        orderId: fullOrder.id,
+        orderNumber: fullOrder.orderNumber,
+        customerName: [fullOrder.user.firstName, fullOrder.user.lastName].filter(Boolean).join(' ') || 'Customer',
+        customerEmail: fullOrder.user.email,
+        customerPhone: fullOrder.user.phone,
+        totalPaise: fullOrder.total,
+        trackingUrl: fullOrder.shipment?.trackingUrl ?? undefined,
+        courier: fullOrder.shipment?.courier ?? undefined,
+        awbNumber: fullOrder.shipment?.awbNumber ?? undefined,
+      };
+      notifyOrderShipped(ctx).catch((err) =>
+        logger.error({ err, orderId }, 'notifyOrderShipped failed'),
+      );
+    }
   }
 
   return result;

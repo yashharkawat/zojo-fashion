@@ -20,6 +20,7 @@ import { adminRouter } from './modules/admin/admin.routes';
 import { settingsRouter } from './modules/settings/settings.routes';
 import { addressesRouter } from './modules/addresses/addresses.routes';
 import { cartRouter } from './modules/cart/cart.routes';
+import { trackingRouter } from './modules/tracking/tracking.routes';
 
 export function createApp(): Application {
   const app = express();
@@ -73,6 +74,7 @@ export function createApp(): Application {
   app.use('/api/v1/addresses', addressesRouter);
   app.use('/api/v1/cart', cartRouter);
   app.use('/api/v1/orders', ordersRouter);
+  app.use('/api/v1/track', trackingRouter);
   app.use('/api/v1/payments', paymentsRouter);
   app.use('/api/v1/admin', adminRouter);
   app.use('/api/v1/settings', settingsRouter);

@@ -7,15 +7,22 @@ export async function Footer() {
   return (
     <footer className="mt-20 border-t border-bg-border bg-bg-elevated">
       <div className="mx-auto max-w-7xl px-4 py-12">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
           <Column title="Shop">
             <Link href="/products">All Products</Link>
+            <Link href="/wishlist">Wishlist</Link>
+            <Link href="/track-order">Track Order</Link>
           </Column>
           <Column title="Help">
+            <Link href="/size-guide">Size Guide</Link>
             <Link href="/help/shipping">Shipping</Link>
             <Link href="/help/returns">Returns</Link>
-            <Link href="/help/size-guide">Size Guide</Link>
             <Link href="/help/contact">Contact</Link>
+          </Column>
+          <Column title="Legal">
+            <Link href="/privacy-policy">Privacy Policy</Link>
+            <Link href="/terms">Terms & Conditions</Link>
+            <Link href="/refund-policy">Refund Policy</Link>
           </Column>
           <Column title="Company">
             <Link href="/about">About</Link>
