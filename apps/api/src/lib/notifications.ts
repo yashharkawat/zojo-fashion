@@ -39,9 +39,14 @@ export async function sendEmail(payload: EmailPayload): Promise<NotificationResu
   const gPass = process.env.GMAIL_APP_PASSWORD;
   if (gUser && gPass) {
     try {
+      // Use explicit SMTP settings (port 587 + STARTTLS) instead of service:'gmail'
+      // which is more reliable on cloud providers like Railway
       const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
         auth: { user: gUser, pass: gPass },
+        tls: { rejectUnauthorized: false },
       });
       const from = process.env.EMAIL_FROM ?? `Zojo Fashion <${gUser}>`;
       const sent = await transporter.sendMail({
@@ -51,6 +56,7 @@ export async function sendEmail(payload: EmailPayload): Promise<NotificationResu
         html: payload.html,
         text: payload.text,
       });
+      logger.info({ to: payload.to, messageId: sent.messageId }, 'Email sent via Gmail');
       return { ok: true, providerId: sent.messageId };
     } catch (err) {
       logger.error({ err, to: payload.to }, 'Gmail send failed');
@@ -140,6 +146,7 @@ export interface OrderNotificationContext {
   trackingUrl?: string;
   courier?: string;
   awbNumber?: string;
+  items?: Array<{ productTitle: string; variantLabel: string; quantity: number }>;
 }
 
 const inr = (p: number): string => `₹${(p / 100).toFixed(0)}`;
@@ -280,32 +287,109 @@ async function notifyMerchantWhatsappOnNewPaidOrder(ctx: OrderNotificationContex
   }
 }
 
+function buildEmailShell(bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#1a1a1a;border-radius:12px;overflow:hidden">
+        <!-- Header -->
+        <tr><td style="background:#0f0f0f;padding:20px 28px;border-bottom:1px solid #2a2a2a">
+          <span style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:4px">ZOJO</span>
+          <span style="font-size:12px;color:#888;margin-left:8px">Fashion</span>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:28px">${bodyHtml}</td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:16px 28px;border-top:1px solid #2a2a2a;text-align:center">
+          <p style="margin:0;font-size:11px;color:#555">
+            Questions? <a href="mailto:zojo.fashion.tee@gmail.com" style="color:#a855f7">zojo.fashion.tee@gmail.com</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function buildTimeline(activeStep: 'confirmed' | 'printing' | 'shipped' | 'delivered'): string {
+  const steps = [
+    { key: 'confirmed', label: 'Confirmed' },
+    { key: 'printing',  label: 'Printing'  },
+    { key: 'shipped',   label: 'Shipped'   },
+    { key: 'delivered', label: 'Delivered' },
+  ];
+  const activeIdx = steps.findIndex((s) => s.key === activeStep);
+  const dots = steps
+    .map((s, i) => {
+      const done = i <= activeIdx;
+      const dot = `<td align="center" style="width:25%">
+        <div style="width:12px;height:12px;border-radius:50%;background:${done ? '#a855f7' : '#333'};margin:0 auto"></div>
+        <div style="font-size:10px;color:${done ? '#d8b4fe' : '#555'};margin-top:4px;letter-spacing:0.5px">${s.label}</div>
+      </td>`;
+      return dot;
+    })
+    .join('<td style="padding-top:5px"><div style="height:2px;background:#2a2a2a;margin:0 4px"></div></td>');
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0">
+    <tr>${dots}</tr>
+  </table>`;
+}
+
+function buildItemsRows(items?: OrderNotificationContext['items']): string {
+  if (!items || items.length === 0) return '';
+  const rows = items
+    .map(
+      (it) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #2a2a2a">
+          <div style="font-size:14px;color:#ffffff;font-weight:600">${escapeHtml(it.productTitle)}</div>
+          <div style="font-size:12px;color:#888;margin-top:2px">${escapeHtml(it.variantLabel)} · Qty ${it.quantity}</div>
+        </td>
+      </tr>`,
+    )
+    .join('');
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0">${rows}</table>`;
+}
+
 export async function notifyOrderShipped(ctx: OrderNotificationContext): Promise<void> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://zojo-fashion.yashharkawat.com';
-  const brandedTrackingUrl = `${siteUrl}/orders/${encodeURIComponent(ctx.orderNumber)}`;
+  const trackUrl = `${siteUrl}/orders/${encodeURIComponent(ctx.orderNumber)}`;
+
+  const body = `
+    <h2 style="margin:0 0 4px;font-size:20px;color:#ffffff">Your package was shipped! 📦</h2>
+    <p style="margin:0 0 20px;font-size:14px;color:#aaa">Hi ${escapeHtml(ctx.customerName)}, your order is on its way.</p>
+
+    ${buildTimeline('shipped')}
+
+    <div style="background:#111;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-size:11px;color:#666;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Order</div>
+      <div style="font-size:15px;color:#d8b4fe;font-weight:700;letter-spacing:1px">${escapeHtml(ctx.orderNumber)}</div>
+      ${ctx.courier ? `<div style="font-size:12px;color:#888;margin-top:4px">Courier: ${escapeHtml(ctx.courier)}${ctx.awbNumber ? ` · AWB ${escapeHtml(ctx.awbNumber)}` : ''}</div>` : ''}
+    </div>
+
+    ${buildItemsRows(ctx.items)}
+
+    <a href="${trackUrl}" style="display:block;text-align:center;background:#a855f7;color:#fff;padding:14px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:1px;margin-top:8px">
+      Track your order →
+    </a>
+    <p style="margin:16px 0 0;font-size:12px;color:#555;text-align:center">
+      Estimated delivery: about one week from dispatch.
+    </p>
+  `;
 
   await Promise.allSettled([
     sendEmail({
       to: ctx.customerEmail,
       subject: `Your order ${ctx.orderNumber} has shipped!`,
-      html: `
-        <h2>On its way, ${escapeHtml(ctx.customerName)} 📦</h2>
-        <p>Your order <strong>${escapeHtml(ctx.orderNumber)}</strong> is now in transit${ctx.courier ? ` via <strong>${escapeHtml(ctx.courier)}</strong>` : ''}.${ctx.awbNumber ? ` AWB: <code>${escapeHtml(ctx.awbNumber)}</code>` : ''}</p>
-        <p style="margin-top:20px">
-          <a href="${brandedTrackingUrl}" style="background:#a855f7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">
-            Track your order →
-          </a>
-        </p>
-        <p style="margin-top:16px;font-size:12px;color:#888">
-          Estimated delivery: about one week from dispatch. You'll receive another email when it's delivered.
-        </p>
-      `,
+      html: buildEmailShell(body),
       tags: { type: 'order_shipped', orderNumber: ctx.orderNumber },
     }),
     ctx.customerPhone
       ? sendSms({
           to: ctx.customerPhone,
-          body: `Zojo Fashion: order ${ctx.orderNumber} shipped! Track here: ${brandedTrackingUrl}`,
+          body: `Zojo Fashion: order ${ctx.orderNumber} shipped! Track: ${trackUrl}`,
         })
       : Promise.resolve({ ok: true }),
   ]);
@@ -315,21 +399,31 @@ export async function notifyOrderDelivered(ctx: OrderNotificationContext): Promi
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://zojo-fashion.yashharkawat.com';
   const ordersUrl = `${siteUrl}/orders`;
 
+  const body = `
+    <h2 style="margin:0 0 4px;font-size:20px;color:#ffffff">Delivered! 🎉</h2>
+    <p style="margin:0 0 20px;font-size:14px;color:#aaa">Hi ${escapeHtml(ctx.customerName)}, your order has arrived.</p>
+
+    ${buildTimeline('delivered')}
+
+    <div style="background:#111;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-size:11px;color:#666;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Order</div>
+      <div style="font-size:15px;color:#d8b4fe;font-weight:700;letter-spacing:1px">${escapeHtml(ctx.orderNumber)}</div>
+    </div>
+
+    ${buildItemsRows(ctx.items)}
+
+    <a href="${ordersUrl}" style="display:block;text-align:center;background:#a855f7;color:#fff;padding:14px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:1px;margin-top:8px">
+      View your orders →
+    </a>
+    <p style="margin:16px 0 0;font-size:12px;color:#555;text-align:center">
+      Loved it? Leave a review on the product page — it helps other fans find us!
+    </p>
+  `;
+
   await sendEmail({
     to: ctx.customerEmail,
     subject: `Your order ${ctx.orderNumber} has been delivered! 🎉`,
-    html: `
-      <h2>Delivered, ${escapeHtml(ctx.customerName)}! 🎉</h2>
-      <p>Your Zojo order <strong>${escapeHtml(ctx.orderNumber)}</strong> has arrived. Hope you love it!</p>
-      <p style="margin-top:20px">
-        <a href="${ordersUrl}" style="background:#a855f7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">
-          View your orders →
-        </a>
-      </p>
-      <p style="margin-top:16px;font-size:13px;color:#888">
-        Loved your purchase? Leave a review on the product page — it helps other customers find us!
-      </p>
-    `,
+    html: buildEmailShell(body),
     tags: { type: 'order_delivered', orderNumber: ctx.orderNumber },
   });
 }

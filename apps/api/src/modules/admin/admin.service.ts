@@ -208,6 +208,7 @@ export async function updateOrderStatus(
       include: {
         user: { select: { firstName: true, lastName: true, email: true, phone: true } },
         shipment: { select: { trackingUrl: true, awbNumber: true, courier: true } },
+        items: { select: { productTitle: true, variantLabel: true, quantity: true } },
       },
     });
     if (fullOrder?.user) {
@@ -221,6 +222,7 @@ export async function updateOrderStatus(
         trackingUrl: fullOrder.shipment?.trackingUrl ?? undefined,
         courier: fullOrder.shipment?.courier ?? undefined,
         awbNumber: fullOrder.shipment?.awbNumber ?? undefined,
+        items: fullOrder.items,
       };
       if (input.status === OrderStatus.SHIPPED && input.trackingInfo) {
         notifyOrderShipped(ctx).catch((err) =>
@@ -244,6 +246,7 @@ export async function resendShippingNotification(orderId: string) {
     include: {
       user: { select: { firstName: true, lastName: true, email: true, phone: true } },
       shipment: { select: { trackingUrl: true, awbNumber: true, courier: true } },
+      items: { select: { productTitle: true, variantLabel: true, quantity: true } },
     },
   });
   if (!order) throw new NotFoundError('Order not found');
@@ -262,6 +265,7 @@ export async function resendShippingNotification(orderId: string) {
     trackingUrl: order.shipment?.trackingUrl ?? undefined,
     courier: order.shipment?.courier ?? undefined,
     awbNumber: order.shipment?.awbNumber ?? undefined,
+    items: order.items,
   };
 
   await notifyOrderShipped(ctx);
