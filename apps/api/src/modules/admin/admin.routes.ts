@@ -50,6 +50,13 @@ adminRouter.put(
   asyncHandler(controller.updateOrderStatusHandler),
 );
 
+adminRouter.post(
+  '/orders/:id/resend-shipping-email',
+  requireFullAdmin,
+  validate({ params: orderIdParamSchema }),
+  asyncHandler(controller.resendShippingNotificationHandler),
+);
+
 adminRouter.get(
   '/analytics',
   requireAdmin,

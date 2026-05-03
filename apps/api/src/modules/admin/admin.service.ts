@@ -231,6 +231,36 @@ export async function updateOrderStatus(
   return result;
 }
 
+export async function resendShippingNotification(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+      shipment: { select: { trackingUrl: true, awbNumber: true, courier: true } },
+    },
+  });
+  if (!order) throw new NotFoundError('Order not found');
+  if (order.status !== 'SHIPPED' && order.status !== 'DELIVERED') {
+    throw new ConflictError('Order is not in a shipped state');
+  }
+  if (!order.user) throw new NotFoundError('Order has no associated user');
+
+  const ctx = {
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    customerName: [order.user.firstName, order.user.lastName].filter(Boolean).join(' ') || 'Customer',
+    customerEmail: order.user.email,
+    customerPhone: order.user.phone,
+    totalPaise: order.total,
+    trackingUrl: order.shipment?.trackingUrl ?? undefined,
+    courier: order.shipment?.courier ?? undefined,
+    awbNumber: order.shipment?.awbNumber ?? undefined,
+  };
+
+  await notifyOrderShipped(ctx);
+  return { ok: true };
+}
+
 export async function analytics(q: AdminAnalyticsQuery) {
   const to = q.to ?? new Date();
   const from = q.from ?? new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);

@@ -26,6 +26,11 @@ export async function getOrderDetailHandler(req: Request<{ id: string }>, res: R
   return ok(res, order);
 }
 
+export async function resendShippingNotificationHandler(req: Request<{ id: string }>, res: Response) {
+  const result = await service.resendShippingNotification(req.params.id);
+  return ok(res, result);
+}
+
 export async function updateOrderStatusHandler(
   req: Request<{ id: string }, unknown, AdminUpdateOrderStatusBody>,
   res: Response,

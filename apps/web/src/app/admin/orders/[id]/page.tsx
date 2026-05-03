@@ -42,10 +42,23 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
 
   const updateStatus = useUpdateOrderStatus();
 
+  async function resendEmail() {
+    setResending(true);
+    try {
+      await api<{ ok: true }>(`/admin/orders/${params.id}/resend-shipping-email`, { method: 'POST' });
+      dispatch(pushToast({ kind: 'success', message: 'Tracking email resent', duration: 3000 }));
+    } catch {
+      dispatch(pushToast({ kind: 'error', message: 'Failed to resend email', duration: 4000 }));
+    } finally {
+      setResending(false);
+    }
+  }
+
   const [trackingCourier, setTrackingCourier] = useState('');
   const [trackingAwb, setTrackingAwb] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
   const [showTracking, setShowTracking] = useState(false);
+  const [resending, setResending] = useState(false);
 
   if (orderQuery.isLoading) {
     return (
@@ -193,7 +206,17 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
         {/* Existing shipment info */}
         {order.shipment?.awbNumber && (
           <div className="rounded-xl border border-bg-border bg-bg-elevated p-4 text-sm">
-            <p className="mb-1 text-[10px] uppercase tracking-wider text-fg-muted">Shipment</p>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wider text-fg-muted">Shipment</p>
+              <button
+                type="button"
+                onClick={resendEmail}
+                disabled={resending}
+                className="text-[10px] uppercase tracking-wider text-accent hover:underline disabled:opacity-50"
+              >
+                {resending ? 'Sending…' : '↺ Resend tracking email'}
+              </button>
+            </div>
             <p className="font-medium text-fg-primary">
               {order.shipment.courier} — <span className="font-mono">{order.shipment.awbNumber}</span>
             </p>

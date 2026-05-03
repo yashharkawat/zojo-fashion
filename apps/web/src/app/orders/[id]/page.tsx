@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
@@ -31,6 +32,98 @@ function addressLines(snapshot: Record<string, unknown>): string[] {
     (x) => x && String(x).trim().length > 0,
   ) as string[];
   return block;
+}
+
+interface Shipment {
+  courier: string | null;
+  awbNumber: string | null;
+  trackingUrl: string | null;
+  shippedAt: string | null;
+  estimatedDeliveryAt: string | null;
+  deliveredAt: string | null;
+}
+
+function ShipmentCard({ shipment }: { shipment: Shipment }) {
+  const [frameLoaded, setFrameLoaded] = useState(false);
+  const [frameError, setFrameError] = useState(false);
+
+  return (
+    <div className="mt-6 rounded-xl border border-bg-border bg-bg-elevated p-5">
+      <h2 className="font-display text-lg tracking-wide text-fg-primary">Shipment</h2>
+      <dl className="mt-3 space-y-1.5 text-sm text-fg-secondary">
+        {shipment.courier && (
+          <div className="flex justify-between">
+            <dt>Courier</dt>
+            <dd className="font-medium text-fg-primary">{shipment.courier}</dd>
+          </div>
+        )}
+        <div className="flex justify-between">
+          <dt>AWB</dt>
+          <dd className="font-mono text-fg-primary">{shipment.awbNumber}</dd>
+        </div>
+        {shipment.shippedAt && (
+          <div className="flex justify-between">
+            <dt>Shipped</dt>
+            <dd className="text-fg-primary">{formatDate(shipment.shippedAt)}</dd>
+          </div>
+        )}
+        {shipment.estimatedDeliveryAt && !shipment.deliveredAt && (
+          <div className="flex justify-between">
+            <dt>Est. delivery</dt>
+            <dd className="text-fg-primary">{formatDate(shipment.estimatedDeliveryAt)}</dd>
+          </div>
+        )}
+        {shipment.deliveredAt && (
+          <div className="flex justify-between">
+            <dt>Delivered</dt>
+            <dd className="text-fg-primary">{formatDate(shipment.deliveredAt)}</dd>
+          </div>
+        )}
+      </dl>
+
+      {shipment.trackingUrl && (
+        <div className="mt-4">
+          {!frameError ? (
+            <div className="relative overflow-hidden rounded-lg border border-bg-border">
+              {!frameLoaded && (
+                <div className="flex h-64 items-center justify-center bg-bg-base">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-bg-border border-t-accent" />
+                </div>
+              )}
+              <iframe
+                src={shipment.trackingUrl}
+                title="Live tracking"
+                className={cn('w-full transition-opacity duration-300', frameLoaded ? 'opacity-100' : 'opacity-0')}
+                style={{ height: frameLoaded ? '600px' : '0px' }}
+                onLoad={() => setFrameLoaded(true)}
+                onError={() => setFrameError(true)}
+                sandbox="allow-scripts allow-same-origin allow-forms"
+              />
+            </div>
+          ) : (
+            <a
+              href={shipment.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-11 w-full items-center justify-center rounded-lg bg-accent font-semibold uppercase tracking-widest text-white shadow-glow-sm transition-all hover:bg-accent-hover hover:shadow-glow"
+            >
+              Track with courier →
+            </a>
+          )}
+          {!frameError && frameLoaded && (
+            <a
+              href={shipment.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 block text-center text-xs text-fg-muted hover:text-accent"
+            >
+              Open in new tab ↗
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function OrderTrackBody({ id }: { id: string }) {
@@ -130,49 +223,7 @@ function OrderTrackBody({ id }: { id: string }) {
       )}
 
       {data.shipment && data.shipment.awbNumber && (
-        <div className="mt-6 rounded-xl border border-bg-border bg-bg-elevated p-5">
-          <h2 className="font-display text-lg tracking-wide text-fg-primary">Shipment</h2>
-          <dl className="mt-3 space-y-1.5 text-sm text-fg-secondary">
-            {data.shipment.courier && (
-              <div className="flex justify-between">
-                <dt>Courier</dt>
-                <dd className="font-medium text-fg-primary">{data.shipment.courier}</dd>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <dt>AWB</dt>
-              <dd className="font-mono text-fg-primary">{data.shipment.awbNumber}</dd>
-            </div>
-            {data.shipment.shippedAt && (
-              <div className="flex justify-between">
-                <dt>Shipped</dt>
-                <dd className="text-fg-primary">{formatDate(data.shipment.shippedAt)}</dd>
-              </div>
-            )}
-            {data.shipment.estimatedDeliveryAt && !data.shipment.deliveredAt && (
-              <div className="flex justify-between">
-                <dt>Est. delivery</dt>
-                <dd className="text-fg-primary">{formatDate(data.shipment.estimatedDeliveryAt)}</dd>
-              </div>
-            )}
-            {data.shipment.deliveredAt && (
-              <div className="flex justify-between">
-                <dt>Delivered</dt>
-                <dd className="text-fg-primary">{formatDate(data.shipment.deliveredAt)}</dd>
-              </div>
-            )}
-          </dl>
-          {data.shipment.trackingUrl && (
-            <a
-              href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/track/${encodeURIComponent(data.orderNumber)}/redirect`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 flex h-11 w-full items-center justify-center rounded-lg bg-accent font-semibold uppercase tracking-widest text-white shadow-glow-sm transition-all hover:bg-accent-hover hover:shadow-glow"
-            >
-              Track with courier →
-            </a>
-          )}
-        </div>
+        <ShipmentCard shipment={data.shipment} />
       )}
 
       <div className="mt-8 rounded-xl border border-bg-border bg-bg-elevated p-5">

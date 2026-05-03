@@ -59,6 +59,9 @@ export const adminApi = {
     },
   ) => api<AdminOrder>(`/admin/orders/${id}/status`, { method: 'PUT', body }),
 
+  resendShippingEmail: (id: string) =>
+    api<{ ok: true }>(`/admin/orders/${id}/resend-shipping-email`, { method: 'POST' }),
+
   markManualReview: (id: string, note?: string) =>
     api<{ ok: true }>(`/admin/orders/${id}/mark-manual-review`, {
       method: 'POST',
