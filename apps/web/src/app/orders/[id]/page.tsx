@@ -8,6 +8,7 @@ import { PageTransition } from '@/components/motion/PageTransition';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { getMyOrder } from '@/features/orders/api';
+import { api } from '@/lib/api';
 import { inr, formatDate } from '@/lib/format';
 import { ApiClientError } from '@/types/api';
 import { cn } from '@/lib/cn';
@@ -137,7 +138,6 @@ function Stars({ value, onChange }: { value: number; onChange: (v: number) => vo
 }
 
 function InlineReview({ slug, productTitle }: { slug: string; productTitle: string }) {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -149,16 +149,10 @@ function InlineReview({ slug, productTitle }: { slug: string; productTitle: stri
     if (!rating) { setError('Pick a star rating'); return; }
     setSubmitting(true); setError('');
     try {
-      const res = await fetch(`${apiBase}/products/${encodeURIComponent(slug)}/reviews`, {
+      await api(`/products/${encodeURIComponent(slug)}/reviews`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ rating, body: body || undefined }),
+        body: { rating, body: body || undefined },
       });
-      if (!res.ok) {
-        const err = (await res.json()) as { message?: string };
-        throw new Error(err.message ?? 'Could not submit');
-      }
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -295,12 +289,19 @@ function OrderTrackBody({ id }: { id: string }) {
 
       {/* Timeline — post-confirmation flow */}
       {!isTerminal && status !== 'PENDING' && (
-        <ol className="mt-4 flex">
-          {FULFILLMENT.map((label, i) => {
-            const done = activeIdx >= i;
-            return (
-              <li key={label} className="flex-1">
-                <div className="flex flex-col items-center gap-2">
+        <div className="relative mt-6">
+          {/* Track background */}
+          <div className="absolute left-0 right-0 top-[5px] h-0.5 bg-bg-border" />
+          {/* Active fill */}
+          <div
+            className="absolute left-0 top-[5px] h-0.5 bg-accent transition-all duration-500"
+            style={{ width: activeIdx <= 0 ? '0%' : `${(activeIdx / (FULFILLMENT.length - 1)) * 100}%` }}
+          />
+          <div className="relative flex justify-between">
+            {FULFILLMENT.map((label, i) => {
+              const done = activeIdx >= i;
+              return (
+                <div key={label} className="flex flex-col items-center gap-2">
                   <div
                     className={cn('h-3 w-3 rounded-full', done ? 'bg-accent shadow-glow-sm' : 'bg-bg-border')}
                     aria-hidden
@@ -309,13 +310,10 @@ function OrderTrackBody({ id }: { id: string }) {
                     {label.replace('_', ' ')}
                   </span>
                 </div>
-                {i < FULFILLMENT.length - 1 && (
-                  <div className={cn('-mt-4 mx-auto h-px w-full', done ? 'bg-accent' : 'bg-bg-border')} />
-                )}
-              </li>
-            );
-          })}
-        </ol>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {data.shipment && data.shipment.awbNumber && (
