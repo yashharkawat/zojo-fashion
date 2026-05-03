@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { fetchSiteSettings } from '@/lib/server-settings';
+import { VisitorCount } from './VisitorCount';
 
 export async function Footer() {
   const social = await fetchSiteSettings();
@@ -37,9 +38,12 @@ export async function Footer() {
 
         <div className="mt-12 flex flex-col items-start justify-between gap-4 border-t border-bg-border pt-6 md:flex-row md:items-center">
           <p className="font-display text-2xl tracking-[0.2em] text-accent">ZOJO FASHION</p>
-          <p className="text-xs text-fg-muted">
-            © {new Date().getFullYear()} Zojo Fashion. Crafted in India for the bold.
-          </p>
+          <div className="flex flex-col items-start gap-2 md:items-end">
+            <p className="text-xs text-fg-muted">
+              © {new Date().getFullYear()} Zojo Fashion. Crafted in India for the bold.
+            </p>
+            <VisitorCount />
+          </div>
         </div>
       </div>
     </footer>

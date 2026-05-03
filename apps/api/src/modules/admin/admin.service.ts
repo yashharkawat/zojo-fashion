@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import { OrderStatus, PaymentStatus, ShipmentStatus, type Prisma } from '@prisma/client';
 import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../../config/prisma';
@@ -268,8 +269,26 @@ export async function resendShippingNotification(orderId: string) {
     items: order.items,
   };
 
+  // Verify SMTP connection before sending so errors surface to the admin UI
+  const gUser = process.env.GMAIL_USER;
+  const gPass = process.env.GMAIL_APP_PASSWORD;
+  if (!gUser || !gPass) {
+    throw new ConflictError('GMAIL_USER or GMAIL_APP_PASSWORD not set on this server');
+  }
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: { user: gUser, pass: gPass },
+    tls: { rejectUnauthorized: false },
+  });
+  await transporter.verify().catch((err: Error) => {
+    throw new ConflictError(`Gmail SMTP error: ${err.message}`);
+  });
+
   await notifyOrderShipped(ctx);
-  return { ok: true };
+  logger.info({ orderId, email: ctx.customerEmail }, 'Tracking email resent');
+  return { ok: true, sentTo: ctx.customerEmail };
 }
 
 export async function analytics(q: AdminAnalyticsQuery) {

@@ -51,6 +51,7 @@ export const viewport: Viewport = {
 };
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+const GC_URL = process.env.NEXT_PUBLIC_GOATCOUNTER_URL;
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const settings = await fetchSiteSettings();
@@ -69,6 +70,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             gtag('config', '${GA_ID}');
           `}</Script>
         </>
+      )}
+      {GC_URL && (
+        <Script
+          data-goatcounter={`${GC_URL}/count`}
+          async
+          src="//gc.zgo.at/count.js"
+          strategy="afterInteractive"
+        />
       )}
       <body
         className="min-h-screen overflow-x-hidden bg-bg-base font-sans text-fg-primary antialiased"

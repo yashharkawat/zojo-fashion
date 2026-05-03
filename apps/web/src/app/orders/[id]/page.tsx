@@ -57,26 +57,16 @@ function ShipmentCard({ shipment }: { shipment: Shipment }) {
             <dd className="font-medium text-fg-primary">{shipment.courier}</dd>
           </div>
         )}
-        <div className="flex justify-between">
-          <dt>AWB</dt>
-          <dd className="font-mono text-fg-primary">{shipment.awbNumber}</dd>
-        </div>
-        {shipment.shippedAt && (
+        {shipment.awbNumber && (
           <div className="flex justify-between">
-            <dt>Shipped</dt>
-            <dd className="text-fg-primary">{formatDate(shipment.shippedAt)}</dd>
+            <dt>AWB</dt>
+            <dd className="font-mono text-fg-primary">{shipment.awbNumber}</dd>
           </div>
         )}
         {shipment.estimatedDeliveryAt && !shipment.deliveredAt && (
           <div className="flex justify-between">
             <dt>Est. delivery</dt>
             <dd className="text-fg-primary">{formatDate(shipment.estimatedDeliveryAt)}</dd>
-          </div>
-        )}
-        {shipment.deliveredAt && (
-          <div className="flex justify-between">
-            <dt>Delivered</dt>
-            <dd className="text-fg-primary">{formatDate(shipment.deliveredAt)}</dd>
           </div>
         )}
       </dl>
@@ -165,35 +155,57 @@ function OrderTrackBody({ id }: { id: string }) {
   const isTerminal = status === 'CANCELLED' || status === 'REFUNDED';
   const activeIdx = timelineActiveIndex(status);
 
+  const itemTitle = data.items.length === 1
+    ? data.items[0].productTitle
+    : data.items.map((i) => i.productTitle).join(', ');
+
+  const STATUS_LABEL: Record<string, string> = {
+    PENDING: 'Awaiting payment',
+    CONFIRMED: 'Confirmed',
+    PRINTING: 'Printing',
+    SHIPPED: 'Shipped',
+    DELIVERED: 'Delivered',
+    CANCELLED: 'Cancelled',
+    REFUNDED: 'Refunded',
+  };
+
+  const STATUS_COLOR: Record<string, string> = {
+    PENDING: 'bg-amber-500/15 text-amber-400',
+    CONFIRMED: 'bg-accent/15 text-accent',
+    PRINTING: 'bg-accent/15 text-accent',
+    SHIPPED: 'bg-blue-500/15 text-blue-400',
+    DELIVERED: 'bg-green-500/15 text-green-400',
+    CANCELLED: 'bg-fg-muted/15 text-fg-muted',
+    REFUNDED: 'bg-fg-muted/15 text-fg-muted',
+  };
+
   return (
     <>
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-accent">Order</p>
-          <h1 className="mt-1 font-display text-2xl tracking-tight text-fg-primary md:text-3xl">
-            {data.orderNumber}
-          </h1>
+      <div className="mb-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-widest text-fg-muted">{data.orderNumber}</p>
+            <h1 className="mt-1 font-display text-2xl tracking-tight text-fg-primary md:text-3xl">
+              {itemTitle}
+            </h1>
+            <p className="mt-1 text-sm text-fg-muted">Placed {formatDate(data.placedAt)}</p>
+          </div>
+          <span className={cn('mt-1 rounded-full px-3 py-1 text-sm font-semibold', STATUS_COLOR[status] ?? 'bg-accent/15 text-accent')}>
+            {STATUS_LABEL[status] ?? status}
+          </span>
         </div>
-        <p className="text-sm text-fg-muted">Placed {formatDate(data.placedAt)}</p>
       </div>
 
       {isTerminal && (
-        <div
-          className={cn(
-            'mb-6 rounded-lg border px-4 py-3 text-sm',
-            status === 'CANCELLED' ? 'border-fg-muted text-fg-secondary' : 'border-accent/40 text-accent',
-          )}
-        >
+        <div className={cn('mb-4 rounded-lg border px-4 py-3 text-sm', status === 'CANCELLED' ? 'border-fg-muted/30 text-fg-secondary' : 'border-accent/40 text-accent')}>
           {status === 'CANCELLED' ? 'This order was cancelled.' : 'This order was refunded.'}
         </div>
       )}
 
       {status === 'PENDING' && (
-        <p className="mb-6 text-sm text-amber-400/90">
+        <p className="mb-4 text-sm text-amber-400/90">
           Awaiting payment. Complete checkout — if you already paid, status updates in a few seconds.{' '}
-          <Link href="/orders" className="underline">
-            My orders
-          </Link>
+          <Link href="/orders" className="underline">My orders</Link>
         </p>
       )}
 

@@ -147,7 +147,11 @@ export async function getOne(userId: string, isAdmin: boolean, orderIdOrNumber: 
       OR: [{ id: orderIdOrNumber }, { orderNumber: orderIdOrNumber }],
     },
     include: {
-      items: true,
+      items: {
+        include: {
+          variant: { select: { product: { select: { slug: true } } } },
+        },
+      },
       payment: true,
       shipment: true,
     },
