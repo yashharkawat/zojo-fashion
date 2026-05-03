@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 
 declare global {
   interface Window {
@@ -19,7 +19,8 @@ function sendPageView(url: string) {
   });
 }
 
-export function GoogleAnalytics() {
+// Isolated into its own component so useSearchParams() is inside a Suspense boundary
+function PageViewTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -29,4 +30,12 @@ export function GoogleAnalytics() {
   }, [pathname, searchParams]);
 
   return null;
+}
+
+export function GoogleAnalytics() {
+  return (
+    <Suspense fallback={null}>
+      <PageViewTracker />
+    </Suspense>
+  );
 }
