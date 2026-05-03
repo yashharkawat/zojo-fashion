@@ -10,6 +10,28 @@ import { OrderStatusBadge } from '@/components/admin/StatusBadge';
 import { inr, formatDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
+function OrderCard({ order }: { order: AdminOrder }) {
+  const totalItems = order.items.reduce((s, i) => s + i.quantity, 0);
+  return (
+    <Link
+      href={`/admin/orders/${order.id}`}
+      className="flex items-start justify-between rounded-xl border border-bg-border bg-bg-elevated px-4 py-3.5 active:bg-bg-overlay"
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm font-bold text-accent">{order.orderNumber}</span>
+          <OrderStatusBadge status={order.status} />
+        </div>
+        <p className="mt-0.5 truncate text-xs text-fg-secondary">
+          {order.user.firstName ?? order.user.email.split('@')[0]} · {totalItems} item{totalItems !== 1 ? 's' : ''}
+        </p>
+        <p className="text-[10px] text-fg-muted">{formatDate(order.placedAt)}</p>
+      </div>
+      <span className="ml-3 flex-shrink-0 font-mono text-sm font-bold text-fg-primary">{inr(order.total)}</span>
+    </Link>
+  );
+}
+
 const STATUS_FILTERS: Array<{ label: string; value: OrderStatus | null }> = [
   { label: 'All',       value: null },
   { label: 'Pending',   value: 'PENDING' },
@@ -128,13 +150,29 @@ export default function AdminOrdersPage() {
         })}
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={query.data?.data ?? []}
-        getRowId={(r) => r.id}
-        isLoading={query.isLoading || query.isPlaceholderData}
-        emptyState="No orders match these filters."
-      />
+      {/* Mobile: card list */}
+      <div className="flex flex-col gap-2 lg:hidden">
+        {query.isLoading ? (
+          [1, 2, 3, 4].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-bg-elevated" />)
+        ) : (query.data?.data ?? []).length === 0 ? (
+          <p className="rounded-xl border border-bg-border bg-bg-elevated p-6 text-center text-sm text-fg-secondary">
+            No orders match these filters.
+          </p>
+        ) : (
+          (query.data?.data ?? []).map((order) => <OrderCard key={order.id} order={order} />)
+        )}
+      </div>
+
+      {/* Desktop: data table */}
+      <div className="hidden lg:block">
+        <DataTable
+          columns={columns}
+          rows={query.data?.data ?? []}
+          getRowId={(r) => r.id}
+          isLoading={query.isLoading || query.isPlaceholderData}
+          emptyState="No orders match these filters."
+        />
+      </div>
 
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
@@ -146,7 +184,7 @@ export default function AdminOrdersPage() {
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="rounded-md border border-bg-border bg-bg-elevated px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50"
+              className="h-10 rounded-md border border-bg-border bg-bg-elevated px-4 text-sm hover:border-accent disabled:opacity-50"
             >
               ← Prev
             </button>
@@ -154,7 +192,7 @@ export default function AdminOrdersPage() {
               type="button"
               onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
               disabled={page >= pagination.totalPages}
-              className="rounded-md border border-bg-border bg-bg-elevated px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50"
+              className="h-10 rounded-md border border-bg-border bg-bg-elevated px-4 text-sm hover:border-accent disabled:opacity-50"
             >
               Next →
             </button>

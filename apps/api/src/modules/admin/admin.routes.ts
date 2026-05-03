@@ -36,6 +36,13 @@ adminRouter.get(
   asyncHandler(controller.listOrdersHandler),
 );
 
+adminRouter.get(
+  '/orders/:id',
+  requireAdmin,
+  validate({ params: orderIdParamSchema }),
+  asyncHandler(controller.getOrderDetailHandler),
+);
+
 adminRouter.put(
   '/orders/:id/status',
   requireFullAdmin,

@@ -21,6 +21,11 @@ export async function listOrdersHandler(
   return paginated(res, data, pagination);
 }
 
+export async function getOrderDetailHandler(req: Request<{ id: string }>, res: Response) {
+  const order = await service.getOrderDetail(req.params.id);
+  return ok(res, order);
+}
+
 export async function updateOrderStatusHandler(
   req: Request<{ id: string }, unknown, AdminUpdateOrderStatusBody>,
   res: Response,

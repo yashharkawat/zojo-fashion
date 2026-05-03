@@ -25,9 +25,11 @@ export interface AdminOrder {
   subtotal: number;
   total: number;
   user: AdminOrderUser;
-  items: Array<{ productTitle: string; variantLabel: string; quantity: number }>;
+  items: Array<{ productTitle: string; variantLabel: string; quantity: number; lineTotal?: number }>;
   payment: { status: string; method: string | null; razorpayPaymentId: string | null } | null;
   shipment: { status: string; awbNumber: string | null; courier: string | null; trackingUrl: string | null } | null;
+  // Present on GET /admin/orders/:id (detail view only)
+  shippingAddressSnapshot?: Record<string, string> | null;
 }
 
 export interface AdminAnalytics {

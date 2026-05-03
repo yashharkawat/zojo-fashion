@@ -99,6 +99,20 @@ export async function listOrders(q: AdminListOrdersQuery) {
   };
 }
 
+export async function getOrderDetail(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
+      items: { select: { productTitle: true, variantLabel: true, quantity: true, lineTotal: true } },
+      payment: { select: { status: true, method: true, razorpayPaymentId: true } },
+      shipment: { select: { status: true, awbNumber: true, courier: true, trackingUrl: true } },
+    },
+  });
+  if (!order) throw new NotFoundError('Order not found');
+  return order;
+}
+
 export async function updateOrderStatus(
   _adminUserId: string,
   orderId: string,
