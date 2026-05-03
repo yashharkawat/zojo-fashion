@@ -186,17 +186,21 @@ function scheduleOrderConfirmationEmail(orderId: string): void {
   void (async () => {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: { select: { firstName: true, email: true, phone: true } } },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+        items: { select: { productTitle: true, variantLabel: true, quantity: true } },
+      },
     });
     if (!order) return;
     try {
       await notifyOrderConfirmed({
         orderId: order.id,
         orderNumber: order.orderNumber,
-        customerName: order.user.firstName ?? 'there',
+        customerName: [order.user.firstName, order.user.lastName].filter(Boolean).join(' ') || 'there',
         customerEmail: order.user.email,
         customerPhone: order.user.phone,
         totalPaise: order.total,
+        items: order.items,
       });
     } catch (err) {
       logger.error({ err, orderId }, 'notifyOrderConfirmationEmail failed');

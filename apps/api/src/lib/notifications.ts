@@ -152,15 +152,36 @@ export interface OrderNotificationContext {
 const inr = (p: number): string => `₹${(p / 100).toFixed(0)}`;
 
 export async function notifyOrderConfirmed(ctx: OrderNotificationContext): Promise<void> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://zojo-fashion.yashharkawat.com';
+  const ordersUrl = `${siteUrl}/orders`;
+
+  const body = `
+    <h2 style="margin:0 0 4px;font-size:20px;color:#ffffff">Order confirmed! 🙌</h2>
+    <p style="margin:0 0 20px;font-size:14px;color:#aaa">Thanks ${escapeHtml(ctx.customerName)}, we've received your order and will begin printing soon.</p>
+
+    ${buildTimeline('confirmed')}
+
+    <div style="background:#111;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-size:11px;color:#666;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Order</div>
+      <div style="font-size:15px;color:#d8b4fe;font-weight:700;letter-spacing:1px">${escapeHtml(ctx.orderNumber)}</div>
+      <div style="font-size:13px;color:#888;margin-top:4px">Total: ${inr(ctx.totalPaise)}</div>
+    </div>
+
+    ${buildItemsRows(ctx.items)}
+
+    <a href="${ordersUrl}" style="display:block;text-align:center;background:#a855f7;color:#fff;padding:14px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:1px;margin-top:8px">
+      View your order →
+    </a>
+    <p style="margin:16px 0 0;font-size:12px;color:#555;text-align:center">
+      You'll receive another email once your order ships.
+    </p>
+  `;
+
   await Promise.allSettled([
     sendEmail({
       to: ctx.customerEmail,
       subject: `Order ${ctx.orderNumber} confirmed — Zojo Fashion`,
-      html: `
-        <h2>Thanks, ${escapeHtml(ctx.customerName)}!</h2>
-        <p>Your order <strong>${ctx.orderNumber}</strong> (${inr(ctx.totalPaise)}) is confirmed.</p>
-        <p>We'll email you when it ships.</p>
-      `,
+      html: buildEmailShell(body),
       tags: { type: 'order_confirmed', orderNumber: ctx.orderNumber },
     }),
     ctx.customerPhone
@@ -429,14 +450,30 @@ export async function notifyOrderDelivered(ctx: OrderNotificationContext): Promi
 }
 
 export async function notifyOrderCancelled(ctx: OrderNotificationContext, reason?: string): Promise<void> {
+  const body = `
+    <h2 style="margin:0 0 4px;font-size:20px;color:#ffffff">Order cancelled</h2>
+    <p style="margin:0 0 20px;font-size:14px;color:#aaa">Hi ${escapeHtml(ctx.customerName)}, we're sorry to let you know your order was cancelled.</p>
+
+    <div style="background:#111;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-size:11px;color:#666;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Order</div>
+      <div style="font-size:15px;color:#d8b4fe;font-weight:700;letter-spacing:1px">${escapeHtml(ctx.orderNumber)}</div>
+      ${reason ? `<div style="font-size:12px;color:#888;margin-top:6px">Reason: ${escapeHtml(reason)}</div>` : ''}
+    </div>
+
+    ${buildItemsRows(ctx.items)}
+
+    <div style="background:#1f1010;border:1px solid #3a1a1a;border-radius:8px;padding:14px 16px;font-size:13px;color:#f87171">
+      A full refund has been initiated and should reflect in your account within 5–7 business days.
+    </div>
+    <p style="margin:16px 0 0;font-size:12px;color:#555;text-align:center">
+      Reply to this email or contact <a href="mailto:zojo.fashion.tee@gmail.com" style="color:#a855f7">zojo.fashion.tee@gmail.com</a> if you have questions.
+    </p>
+  `;
+
   await sendEmail({
     to: ctx.customerEmail,
-    subject: `Order ${ctx.orderNumber} — issue with fulfillment`,
-    html: `
-      <p>Hi ${escapeHtml(ctx.customerName)},</p>
-      <p>We ran into an issue fulfilling order <strong>${ctx.orderNumber}</strong>${reason ? `: ${escapeHtml(reason)}` : '.'} We're initiating a full refund — it should reflect in 5–7 business days.</p>
-      <p>Reply to this email if you have questions.</p>
-    `,
+    subject: `Your order ${ctx.orderNumber} has been cancelled`,
+    html: buildEmailShell(body),
     tags: { type: 'order_cancelled', orderNumber: ctx.orderNumber },
   });
 }
