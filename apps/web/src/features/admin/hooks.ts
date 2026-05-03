@@ -70,8 +70,9 @@ export function useUpdateOrderStatus() {
       reason?: string;
       trackingInfo?: { courier: string; awb: string; trackingUrl?: string };
     }) => adminApi.updateOrderStatus(id, { status, reason, trackingInfo }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['admin', 'orders'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'order', variables.id] });
       qc.invalidateQueries({ queryKey: ['admin', 'analytics'] });
     },
   });

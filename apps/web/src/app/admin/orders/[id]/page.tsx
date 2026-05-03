@@ -89,6 +89,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
             : undefined,
       });
       dispatch(pushToast({ kind: 'success', message: `Order → ${next}`, duration: 2500 }));
+      void orderQuery.refetch();
     } catch (err) {
       dispatch(pushToast({ kind: 'error', message: err instanceof Error ? err.message : 'Failed', duration: 4000 }));
     }
