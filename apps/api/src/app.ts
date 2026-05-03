@@ -21,6 +21,8 @@ import { settingsRouter } from './modules/settings/settings.routes';
 import { addressesRouter } from './modules/addresses/addresses.routes';
 import { cartRouter } from './modules/cart/cart.routes';
 import { trackingRouter } from './modules/tracking/tracking.routes';
+import { reviewsRouter, reviewAdminRouter } from './modules/reviews/reviews.routes';
+import { blogPublicRouter, blogAdminRouter } from './modules/blog/blog.routes';
 
 export function createApp(): Application {
   const app = express();
@@ -77,7 +79,11 @@ export function createApp(): Application {
   app.use('/api/v1/track', trackingRouter);
   app.use('/api/v1/payments', paymentsRouter);
   app.use('/api/v1/admin', adminRouter);
+  app.use('/api/v1/admin/blog', blogAdminRouter);
   app.use('/api/v1/settings', settingsRouter);
+  app.use('/api/v1/products/:slug/reviews', reviewsRouter);
+  app.use('/api/v1/reviews', reviewAdminRouter);
+  app.use('/api/v1/blog', blogPublicRouter);
 
   // 404
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.path} not found`)));

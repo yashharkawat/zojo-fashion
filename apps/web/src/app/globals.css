@@ -127,3 +127,20 @@ html, body {
   pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.35) 100%);
 }
+
+/* Blog / markdown prose */
+.prose-zojo { color: #aaa; line-height: 1.75; }
+.prose-zojo h1,.prose-zojo h2,.prose-zojo h3,.prose-zojo h4 { font-family: var(--font-bebas); letter-spacing: 0.05em; color: #f5f5f5; margin-top: 2em; margin-bottom: 0.5em; }
+.prose-zojo h1 { font-size: 2rem; }
+.prose-zojo h2 { font-size: 1.5rem; }
+.prose-zojo h3 { font-size: 1.25rem; }
+.prose-zojo p { margin-bottom: 1.25em; }
+.prose-zojo a { color: #FF4500; text-decoration: underline; text-underline-offset: 3px; }
+.prose-zojo ul,.prose-zojo ol { padding-left: 1.5em; margin-bottom: 1.25em; }
+.prose-zojo li { margin-bottom: 0.4em; }
+.prose-zojo blockquote { border-left: 3px solid #FF4500; padding-left: 1em; color: #888; font-style: italic; margin: 1.5em 0; }
+.prose-zojo code { background: #1a1a1a; border-radius: 4px; padding: 0.1em 0.4em; font-size: 0.875em; color: #f5f5f5; }
+.prose-zojo pre { background: #1a1a1a; border-radius: 8px; padding: 1em; overflow-x: auto; margin-bottom: 1.25em; }
+.prose-zojo pre code { background: none; padding: 0; }
+.prose-zojo img { border-radius: 8px; max-width: 100%; }
+.prose-zojo hr { border-color: #2a2a2a; margin: 2em 0; }

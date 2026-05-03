@@ -12,6 +12,8 @@ import { CartDrawer } from '@/components/cart/CartDrawer';
 import { Toaster } from '@/components/ui/Toaster';
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
+import { WhatsAppButton } from '@/components/layout/WhatsAppButton';
+import { fetchSiteSettings } from '@/lib/server-settings';
 
 const bebas = Bebas_Neue({
   subsets: ['latin'],
@@ -50,7 +52,8 @@ export const viewport: Viewport = {
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const settings = await fetchSiteSettings();
   return (
     <html lang="en" className={`${bebas.variable} ${dmSans.variable}`}>
       {GA_ID && (
@@ -79,6 +82,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <CartDrawer />
           <GlobalLoginModal />
           <Toaster />
+          <WhatsAppButton number={settings.whatsappNumber} />
         </Providers>
         {/* Server-only footer: must NOT sit inside `Providers` (client tree) or async RSC
             composition can break styling/hydration on some pages (e.g. /login). */}

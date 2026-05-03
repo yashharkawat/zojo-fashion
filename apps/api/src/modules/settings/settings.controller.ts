@@ -11,7 +11,12 @@ export async function getPublicHandler(_req: Request, res: Response) {
     return ok(res, {
       instagramUrl: 'https://www.instagram.com/100days.fashion',
       youtubeUrl: 'https://www.youtube.com/@yashharkawat6147',
+      whatsappNumber: '918824362279',
     });
   }
-  return ok(res, { instagramUrl: row.instagramUrl, youtubeUrl: row.youtubeUrl });
+  return ok(res, {
+    instagramUrl: row.instagramUrl,
+    youtubeUrl: row.youtubeUrl,
+    whatsappNumber: row.whatsappNumber ?? '918824362279',
+  });
 }

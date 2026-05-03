@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { ProductDetailClient } from '@/components/product/ProductDetailClient';
 import { RelatedProducts } from '@/components/product/RelatedProducts';
+import { ReviewSection } from '@/components/product/ReviewSection';
 import { fetchProductDetailBySlug, fetchRelatedForSlug } from '@/lib/server-products';
 
 function categoryLabelFromSlug(slug: string): string {
@@ -36,6 +37,12 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
         </nav>
 
         <ProductDetailClient product={product} />
+
+        <ReviewSection
+          slug={product.slug}
+          avgRating={product.avgRating}
+          reviewCount={product.reviewCount}
+        />
       </div>
 
       <RelatedProducts products={related} />

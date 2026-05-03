@@ -1,9 +1,14 @@
 const FALLBACK = {
   instagramUrl: 'https://www.instagram.com/100days.fashion',
   youtubeUrl: 'https://www.youtube.com/@yashharkawat6147',
+  whatsappNumber: '918824362279',
 } as const;
 
-export type SiteSettingsPublic = typeof FALLBACK;
+export type SiteSettingsPublic = {
+  instagramUrl: string;
+  youtubeUrl: string;
+  whatsappNumber: string;
+};
 
 export async function fetchSiteSettings(): Promise<SiteSettingsPublic> {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -14,8 +19,11 @@ export async function fetchSiteSettings(): Promise<SiteSettingsPublic> {
     const body = (await res.json()) as { data: SiteSettingsPublic | null; error: unknown };
     if (body.error || !body.data) return { ...FALLBACK };
     const d = body.data;
-    if (!d.instagramUrl || !d.youtubeUrl) return { ...FALLBACK };
-    return d;
+    return {
+      instagramUrl: d.instagramUrl || FALLBACK.instagramUrl,
+      youtubeUrl: d.youtubeUrl || FALLBACK.youtubeUrl,
+      whatsappNumber: d.whatsappNumber || FALLBACK.whatsappNumber,
+    };
   } catch {
     return { ...FALLBACK };
   }

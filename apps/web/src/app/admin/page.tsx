@@ -23,12 +23,20 @@ export default function AdminOverviewPage() {
           <h1 className="font-display text-4xl tracking-tight text-fg-primary">Overview</h1>
           <p className="text-sm text-fg-secondary">Last 30 days</p>
         </div>
-        <Link
-          href="/admin/analytics"
-          className="hidden rounded-md border border-bg-border bg-bg-elevated px-3 py-2 text-xs font-semibold uppercase tracking-widest text-fg-secondary hover:border-accent hover:text-accent md:inline-flex"
-        >
-          Full analytics →
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/admin/blog"
+            className="hidden rounded-md border border-bg-border bg-bg-elevated px-3 py-2 text-xs font-semibold uppercase tracking-widest text-fg-secondary hover:border-accent hover:text-accent md:inline-flex"
+          >
+            Blog →
+          </Link>
+          <Link
+            href="/admin/analytics"
+            className="hidden rounded-md border border-bg-border bg-bg-elevated px-3 py-2 text-xs font-semibold uppercase tracking-widest text-fg-secondary hover:border-accent hover:text-accent md:inline-flex"
+          >
+            Full analytics →
+          </Link>
+        </div>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
