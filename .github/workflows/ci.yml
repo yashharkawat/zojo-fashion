@@ -60,12 +60,25 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-  # ─── Gate for auto-deploys (Railway, Vercel) when "wait for checks" is enabled ───
+  # ─── Gate for auto-deploys (Render, Vercel) when "wait for checks" is enabled ───
   deploy-gate:
     name: OK to deploy (all checks passed)
     needs: [api-check, web-check]
     runs-on: ubuntu-latest
     if: success()
     steps:
-      - name: Signalled for Railway / Vercel
-        run: echo "api-check + web-check passed; connected GitHub auto-deploys may run."
+      - name: Signalled for Render / Vercel
+        run: echo "api-check + web-check passed; deploy jobs may run."
+
+  # ─── Deploy API to Render ─────────────────────────────────
+  deploy-api:
+    name: Deploy API → Render
+    needs: [deploy-gate]
+    runs-on: ubuntu-latest
+    # Only deploy on pushes to main, not on PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Deploy triggered successfully."
